@@ -20,6 +20,9 @@ Initial public release of `streamit-player`.
 - Playback of MP4, WebM and MOV files, HLS (via the `hls.js` peer dependency) and
   MPEG-DASH (via the `dashjs` peer dependency), plus live and DVR streams. Both libraries are
   loaded on demand, only when an HLS or DASH source plays.
+- Low-latency DASH: low-latency mode follows the stream's manifest, and live catch-up keeps
+  latency low while the viewer follows the live edge, in both live-only and DVR modes. It pauses
+  while the viewer is watching behind live in the DVR window and resumes when they go back to live.
 - Multi-DRM: Widevine, PlayReady, FairPlay and ClearKey.
 - Advertising: VAST, VMAP, Google IMA, SIMID interactive ads and HTML overlays.
 - Smart Seek thumbnail previews, chapters, markers, subtitles, audio-track and quality selection,

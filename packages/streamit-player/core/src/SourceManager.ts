@@ -65,6 +65,10 @@ function isDashLowLatencyActive(player: dashjs.MediaPlayerClass): boolean {
   }
 }
 
+/** Seconds behind the live edge target that still count as "at live" for a
+ * low-latency stream. Matches PlayerController's low-latency live-edge threshold. */
+const LOW_LATENCY_LIVE_EDGE_SECONDS = 6;
+
 /**
  * dash.js's published types don't cover several legacy/undocumented
  * MediaPlayer methods this codebase relies on for ABR + live-edge control.
@@ -1237,6 +1241,10 @@ export class DashHandler implements SourceHandler {
   private dashRetryCount = 0;
   private eventNames: Record<string, string> = {};
   private drmManager: DrmManager | null = null;
+  /** False once the viewer seeks back into the DVR window or resumes behind live. */
+  private followingLive = true;
+  /** Last live catch-up value pushed to dash.js, so settings only change on transitions. */
+  private catchupEnabled: boolean | null = null;
 
   getDrmManager(): DrmManager | null {
     return this.drmManager;
@@ -1296,6 +1304,44 @@ export class DashHandler implements SourceHandler {
       }
     }
   }
+
+  /**
+   * Live catch-up (small playback-rate changes that hold latency near the target) is
+   * always on in live-only mode. In live-dvr mode it's on for low-latency streams while
+   * the viewer follows the live edge, and off once they seek back into the DVR window or
+   * resume from a pause behind it, so dash.js doesn't pull a time-shifted viewer forward.
+   * It follows viewer actions rather than the current latency, so a stall at the live
+   * edge doesn't switch catch-up off just when it's needed to recover.
+   */
+  private syncLiveCatchup = () => {
+    if (!this.player || !this.controller) return;
+    try {
+      if (!this.player.isDynamic()) return;
+      const enabled =
+        this.controller.getState().liveMode === 'live-only' ||
+        (this.followingLive && isDashLowLatencyActive(this.player));
+      if (enabled === this.catchupEnabled) return;
+      this.catchupEnabled = enabled;
+      this.player.updateSettings({ streaming: { liveCatchup: { enabled } } });
+    } catch {
+      // dash.js throws before playback is initialized; the next timeupdate retries.
+    }
+  };
+
+  /** On seeks and resumes, records whether the viewer is still following the live edge. */
+  private handleLivePositionChange = () => {
+    if (!this.player || !this.video) return;
+    try {
+      if (!this.player.isDynamic()) return;
+      const target = this.getRawLiveInfo()?.liveEdgeTarget;
+      // Before the first frame currentTime is still 0, so keep the current intent.
+      if (target == null || this.video.currentTime <= 0) return;
+      this.followingLive = target - this.video.currentTime <= LOW_LATENCY_LIVE_EDGE_SECONDS;
+      this.syncLiveCatchup();
+    } catch {
+      // dash.js throws before playback is initialized.
+    }
+  };
 
   private normalizeQualityIndex(value: unknown): number {
     return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : -1;
@@ -1619,6 +1665,11 @@ export class DashHandler implements SourceHandler {
     this.videoRepresentations = [];
     this.uniqueAudioTracks = [];
     this.dashRetryCount = 0;
+    this.followingLive = true;
+    this.catchupEnabled = null;
+    video.addEventListener('seeking', this.handleLivePositionChange);
+    video.addEventListener('play', this.handleLivePositionChange);
+    video.addEventListener('timeupdate', this.syncLiveCatchup);
 
     loadDashjs()
       .then((dashjsModule) => {
@@ -2087,6 +2138,11 @@ export class DashHandler implements SourceHandler {
   }
 
   destroy() {
+    if (this.video) {
+      this.video.removeEventListener('seeking', this.handleLivePositionChange);
+      this.video.removeEventListener('play', this.handleLivePositionChange);
+      this.video.removeEventListener('timeupdate', this.syncLiveCatchup);
+    }
     if (this.player) {
       try {
         if (this.eventNames.trackChangeRendered)
