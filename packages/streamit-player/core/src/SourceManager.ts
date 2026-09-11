@@ -1328,19 +1328,33 @@ export class DashHandler implements SourceHandler {
     }
   };
 
-  /** On seeks and resumes, records whether the viewer is still following the live edge. */
-  private handleLivePositionChange = () => {
-    if (!this.player || !this.video) return;
+  /**
+   * Records whether the viewer is following the live edge, given a position they chose.
+   * Only viewer actions call this: seeks made by dash.js itself must not count.
+   */
+  private recordViewerPosition(position: number) {
+    if (!this.player) return;
     try {
       if (!this.player.isDynamic()) return;
       const target = this.getRawLiveInfo()?.liveEdgeTarget;
-      // Before the first frame currentTime is still 0, so keep the current intent.
-      if (target == null || this.video.currentTime <= 0) return;
-      this.followingLive = target - this.video.currentTime <= LOW_LATENCY_LIVE_EDGE_SECONDS;
+      // Before the first frame the position is still 0, so keep the current intent.
+      if (target == null || position <= 0) return;
+      this.followingLive = target - position <= LOW_LATENCY_LIVE_EDGE_SECONDS;
       this.syncLiveCatchup();
     } catch {
       // dash.js throws before playback is initialized.
     }
+  }
+
+  /** Resuming playback: the viewer carries on from wherever the playhead is now. */
+  private handleResume = () => {
+    if (this.video) this.recordViewerPosition(this.video.currentTime);
+  };
+
+  /** "Go to live" always means the viewer is following the live edge again. */
+  private handleLiveEdgeSync = () => {
+    this.followingLive = true;
+    this.syncLiveCatchup();
   };
 
   private normalizeQualityIndex(value: unknown): number {
@@ -1667,9 +1681,9 @@ export class DashHandler implements SourceHandler {
     this.dashRetryCount = 0;
     this.followingLive = true;
     this.catchupEnabled = null;
-    video.addEventListener('seeking', this.handleLivePositionChange);
-    video.addEventListener('play', this.handleLivePositionChange);
+    video.addEventListener('play', this.handleResume);
     video.addEventListener('timeupdate', this.syncLiveCatchup);
+    controller.addEventListener('live-edge-sync', this.handleLiveEdgeSync);
 
     loadDashjs()
       .then((dashjsModule) => {
@@ -2139,10 +2153,10 @@ export class DashHandler implements SourceHandler {
 
   destroy() {
     if (this.video) {
-      this.video.removeEventListener('seeking', this.handleLivePositionChange);
-      this.video.removeEventListener('play', this.handleLivePositionChange);
+      this.video.removeEventListener('play', this.handleResume);
       this.video.removeEventListener('timeupdate', this.syncLiveCatchup);
     }
+    this.controller?.removeEventListener('live-edge-sync', this.handleLiveEdgeSync);
     if (this.player) {
       try {
         if (this.eventNames.trackChangeRendered)
@@ -2180,11 +2194,25 @@ export class DashHandler implements SourceHandler {
     this.uniqueAudioTracks = [];
   }
 
-  seek(_time: number): boolean {
-    // Return false to allow PlayerController to set this.video.currentTime directly.
-    // Calling dashjs.player.seek(time) in live DVR mode causes dash.js to ignore
-    // the seek and instantly snap back to the live edge.
-    return false;
+  seek(time: number): boolean {
+    // Every seek here is a viewer action, so it decides whether live catch-up runs.
+    this.recordViewerPosition(time);
+    if (!this.player) return false;
+    try {
+      // VOD keeps the default path: PlayerController sets video.currentTime directly.
+      if (!this.player.isDynamic()) return false;
+      // Live DVR seeks must go through dash.js so it fetches segments at the target.
+      // Setting video.currentTime directly leaves dash.js buffering near the live edge,
+      // and it then moves the playhead back into that buffer. dash.js's seek() is the
+      // wrong call too: it takes an offset from the DVR window start, so an absolute
+      // time lands past the live edge and gets clamped to it. seekToPresentationTime()
+      // takes the absolute time.
+      this.player.seekToPresentationTime(time);
+      return true;
+    } catch {
+      // dash.js throws before playback is initialized; fall back to video.currentTime.
+      return false;
+    }
   }
 
   setQuality(index: number) {

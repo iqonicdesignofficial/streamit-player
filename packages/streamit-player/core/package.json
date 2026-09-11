@@ -1,7 +1,7 @@
 {
   "name": "@streamit-player/core-internal",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Headless, framework-agnostic video playback engine with HLS/DASH/DRM, VAST/VMAP/SIMID ads, and Smart Seek thumbnails.",
   "license": "Apache-2.0",
   "author": "Iqonic Design",

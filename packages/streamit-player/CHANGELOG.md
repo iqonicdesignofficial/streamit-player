@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Seeking back into the DVR window of a live DASH stream now stays at the chosen position. Before,
+  dash.js kept loading segments near the live edge and moved the playhead back there.
+- Live catch-up on low-latency DASH streams now reacts only to the viewer's own seeks, "go to live"
+  and resuming playback, not to seeks dash.js makes internally.
+
 ## [1.0.0] - 2026-09-11
 
 Initial public release of `streamit-player`.
