@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "lib": ["DOM", "DOM.Iterable", "ESNext"]
+  },
+  "include": [
+    "src/**/*",
+    "../../packages/streamit-player/core/src/types/webkit-eme.d.ts"
+  ]
+}

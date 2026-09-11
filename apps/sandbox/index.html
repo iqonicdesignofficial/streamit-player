@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Player SDK Monorepo Playground</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="/src/styles/main.css" />
+</head>
+
+<body>
+  <div class="sandbox-container">
+    <!-- Header Area -->
+    <header>
+      <div class="header-meta">
+        <h1>Player SDK Sandbox</h1>
+        <p>Multi-source responsive adaptive streaming developer environment</p>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="workspace-grid">
+      <!-- Left Column: Stage -->
+      <div class="left-column">
+        <!-- Stage Container -->
+        <div class="player-stage-container">
+          <div class="player-stage">
+            <player-player id="test-player" autoplay></player-player>
+
+            <!-- Sandbox Empty State Overlay -->
+            <div class="sandbox-empty-state" id="sandbox-empty-state" role="region" aria-label="No media source loaded">
+              <div class="sandbox-empty-state-content">
+                <button class="sandbox-empty-state-play-btn" id="sandbox-empty-state-play-btn"
+                  aria-label="Choose a source and click Load Source">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </button>
+                <h2 class="sandbox-empty-state-title">No Media Loaded</h2>
+                <p class="sandbox-empty-state-text">
+                  Select a media source from the panel on the right, then press Load Source.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- External HTML Overlay / Companion Ad Slot Demonstrator.
+             Represents a page element OUTSIDE the video player (e.g. a sidebar
+             ad unit) that HTML Overlay's "External Slot" render target, and
+             AdsManager.showCompanions()'s companionSlots, place creatives into. -->
+        <div class="panel-card" id="sandbox-external-overlay-slot" style="display: none; padding: 12px; border: 1px dashed var(--border-color); border-radius: 8px; margin-top: 12px;">
+          <p style="margin: 0 0 8px 0; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary, #94a3b8);">
+            External Page Slot (outside the player - e.g. a sidebar ad unit)
+          </p>
+        </div>
+
+        <!-- SDK Chapters Integration Demonstrator -->
+        <div class="panel-card" id="external-chapters-panel" style="display: none">
+          <div class="chapters-panel-header">
+            <div class="chapters-header-text">
+              <h3 class="chapters-panel-title">Chapter Navigation Examples</h3>
+              <p class="chapters-panel-subtitle">
+                Demonstrating external integrations built using SDK chapter APIs.
+              </p>
+            </div>
+            <div class="chapters-tabs-segmented">
+              <button class="demo-tab-btn active" data-tab="sidebar">Standard Sidebar</button>
+              <button class="demo-tab-btn" data-tab="course">Course Lecture</button>
+              <button class="demo-tab-btn" data-tab="ott">OTT Scene Select</button>
+            </div>
+          </div>
+
+          <!-- Tab 1: Standard Sidebar Style Chapters List -->
+          <div id="demo-tab-sidebar" class="demo-tab-content">
+            <p style="margin: 0 0 16px 0; font-size: 0.85rem; color: var(--label-color)">
+              Standard sidebar layout built externally using SDK APIs. Highlights the active
+              chapter in real-time.
+            </p>
+            <div id="sidebar-chapters-container" class="chapters-scroll-container"
+              style="display: flex; flex-direction: column; gap: 8px">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- Tab 2: Course Syllabus Lecture Chapters List -->
+          <div id="demo-tab-course" class="demo-tab-content" style="display: none">
+            <p style="margin: 0 0 16px 0; font-size: 0.85rem; color: var(--label-color)">
+              Online learning / course lecture layout. Tracks and checkmarks completed lecture
+              sections as the user progresses.
+            </p>
+            <div id="course-chapters-container" class="chapters-scroll-container"
+              style="display: flex; flex-direction: column; gap: 8px">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- Tab 3: OTT Scene Select -->
+          <div id="demo-tab-ott" class="demo-tab-content" style="display: none">
+            <p style="margin: 0 0 16px 0; font-size: 0.85rem; color: var(--label-color)">
+              Over-The-Top (OTT) visual scene selection cards. Shows live scene durations and
+              active playback progress lines.
+            </p>
+            <div id="ott-chapters-container" class="chapters-scroll-container" style="
+                  display: grid;
+                  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+                  gap: 16px;
+                  padding-bottom: 8px;
+                ">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Real-time Telemetry Dashboard & Configurator -->
+      <div class="right-column">
+        <!-- Telemetry Card -->
+        <div class="panel-card" id="telemetry-card-container">
+          <h3>Telemetry Dashboard</h3>
+
+          <div class="telemetry-grid">
+            <div class="telemetry-item">
+              <span class="telemetry-label">Status</span>
+              <span class="telemetry-value" id="state-status">Disconnected</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">Format</span>
+              <span class="telemetry-value" id="state-format">Unknown</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">Time</span>
+              <span class="telemetry-value" id="state-time">00:00 / 00:00</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">Volume</span>
+              <span class="telemetry-value" id="state-volume">100%</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">Quality Level</span>
+              <span class="telemetry-value" id="state-quality">Auto</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">Subtitles</span>
+              <span class="telemetry-value" id="state-subtitles">Off</span>
+            </div>
+            <div class="telemetry-item live-only-item" style="display: none">
+              <span class="telemetry-label">Live Status</span>
+              <span class="telemetry-value" id="state-live">No</span>
+            </div>
+            <div class="telemetry-item live-only-item" style="display: none">
+              <span class="telemetry-label">Low Latency</span>
+              <span class="telemetry-value" id="state-low-latency">No</span>
+            </div>
+            <div class="telemetry-item live-only-item" style="display: none">
+              <span class="telemetry-label">Live Latency</span>
+              <span class="telemetry-value" id="state-live-latency">-</span>
+            </div>
+            <div class="telemetry-item live-only-item" style="display: none">
+              <span class="telemetry-label">DVR Window</span>
+              <span class="telemetry-value" id="state-dvr-window">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Metadata Inspector Card -->
+        <div class="panel-card" id="metadata-card-container" style="display: none; margin-top: 16px">
+          <div style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 12px;
+              ">
+            <h3 style="margin: 0">Metadata Inspector</h3>
+            <div style="display: flex; gap: 8px">
+              <label style="
+                    font-size: 0.8rem;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    cursor: pointer;
+                  ">
+                <input type="checkbox" id="metadata-autoscroll" checked /> Auto-scroll
+              </label>
+              <button id="metadata-clear-btn" class="btn btn-secondary"
+                style="padding: 2px 8px; font-size: 0.75rem; min-height: auto">
+                Clear
+              </button>
+              <button id="metadata-export-btn" class="btn btn-secondary"
+                style="padding: 2px 8px; font-size: 0.75rem; min-height: auto">
+                Export
+              </button>
+            </div>
+          </div>
+          <div id="metadata-events-container" style="
+                max-height: 200px;
+                overflow-y: auto;
+                background: var(--bg-primary);
+                border-radius: 8px;
+                padding: 8px;
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 0.75rem;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+              ">
+            <!-- Metadata events go here -->
+          </div>
+        </div>
+
+        <!-- Configuration Card -->
+        <div class="panel-card" id="config-card-container">
+          <h3>Media Source Configurator</h3>
+
+          <!-- Source Type Select -->
+          <div class="form-group">
+            <label for="source-type">Source Type</label>
+            <div class="select-wrapper">
+              <select id="source-type">
+                <option value="mp4">Progressive MP4</option>
+                <option value="hls">HLS Adaptive Stream (.m3u8)</option>
+                <option value="dash">DASH Adaptive Stream (.mpd)</option>
+                <option value="webm">WebM Progressive Video</option>
+                <option value="mov">MOV Video</option>
+                <option value="file">Local File Upload</option>
+                <option value="blob">Blob URL</option>
+                <option value="embed">Embedded External Source</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Display Mode Select -->
+          <div class="form-group">
+            <label for="display-mode-select">Display Mode</label>
+            <div class="select-wrapper">
+              <select id="display-mode-select">
+                <option value="standard" selected>Standard (16:9)</option>
+                <option value="vertical">Vertical (9:16)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Live Mode Select -->
+          <div class="form-group" id="live-mode-group" style="display: none">
+            <label for="live-mode-select">Live Mode Configuration</label>
+            <div class="select-wrapper">
+              <select id="live-mode-select">
+                <option value="live-only">Live Only (No DVR)</option>
+                <option value="live-dvr" selected>Live DVR (Time-shifting)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Dynamic Input Panels -->
+          <!-- 1. URL Input Box (Default for MP4, HLS, DASH, WebM, Blob) -->
+          <div id="panel-url-input" class="form-group">
+            <div style="
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  margin-bottom: 4px;
+                ">
+              <label id="url-label" for="video-url-input" style="margin: 0">Video URL</label>
+              <button type="button" id="add-url-btn" class="btn btn-secondary" style="
+                    padding: 2px 8px;
+                    font-size: 0.8rem;
+                    min-height: auto;
+                    width: auto;
+                    margin: 0;
+                  ">
+                + Add URL
+              </button>
+            </div>
+            <input type="text" id="video-url-input" placeholder="Paste media source URL here..." />
+            <div id="video-url-extra-container" style="display: flex; flex-direction: column; gap: 8px">
+              <!-- Additional inputs populated here -->
+            </div>
+          </div>
+
+          <!-- 2. Local File Picker Panel -->
+          <div id="panel-file-input" class="form-group" style="display: none">
+            <div style="
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  margin-bottom: 4px;
+                ">
+              <label id="file-label" style="margin: 0">Select Video File</label>
+              <button type="button" id="add-file-btn" class="btn btn-secondary" style="
+                    padding: 2px 8px;
+                    font-size: 0.8rem;
+                    min-height: auto;
+                    width: auto;
+                    margin: 0;
+                    display: none;
+                  ">
+                + Add File
+              </button>
+            </div>
+            <div class="file-input-wrapper">
+              <div class="file-input-btn">
+                <span>📂 Drag & Drop or Click to Choose File</span>
+                <span id="selected-file-name" style="font-weight: 700; color: var(--text-color)"></span>
+              </div>
+              <input type="file" id="local-file-picker" accept="video/*" />
+            </div>
+            <div id="video-file-extra-container" style="display: flex; flex-direction: column; gap: 8px">
+              <!-- Additional local files populated here in Vertical Mode -->
+            </div>
+          </div>
+
+          <!-- Ads Support Toggle -->
+          <div class="form-group" style="margin-top: 20px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; text-transform: none; font-size: 0.9rem; font-weight: 600;">
+              <input type="checkbox" id="ads-support-toggle" /> Enable Ads Support
+            </label>
+          </div>
+
+          <!-- Ads Configurator Section -->
+          <div id="ads-config-section" style="display: none; border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 16px;">
+            <!-- Advertisement Type Dropdown -->
+            <div class="form-group">
+              <label for="ads-provider-select">Advertisement Type</label>
+              <div class="select-wrapper">
+                <select id="ads-provider-select">
+                  <option value="VAST" selected>Native VAST</option>
+                  <option value="VMAP">Native VMAP</option>
+                  <option value="IMA">Google IMA</option>
+                  <option value="SIMID">SIMID</option>
+                  <option value="HTML_OVERLAY">HTML Overlay</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Provider Specific URL Input Panels -->
+            <!-- 1. Native VAST -->
+            <div id="ad-panel-vast" class="form-group" style="display: block;">
+              <label for="ad-url-vast">Advertisement URL</label>
+              <input type="text" id="ad-url-vast" placeholder="Paste VAST XML URL" />
+              <div id="ad-vmap-warning" class="ads-warning">
+                ⚠ This looks like a VMAP tag (<code>output=vmap</code>). Select "Native VMAP" as Advertisement Type above instead - VMAP tags are not valid standalone VAST and will fail to parse here.
+              </div>
+
+              <div class="ads-divider"></div>
+
+              <label for="ad-skip-mode">Skip Button Behavior</label>
+              <select id="ad-skip-mode">
+                <option value="auto" selected>Default (as set by the ad)</option>
+                <option value="user"> Allow Skip</option>
+                <option value="disabled">Don't Allow Skip</option>
+              </select>
+              <div id="ad-skip-offset-wrap" class="ads-subfield" style="display:none;">
+                <label for="ad-skip-offset">Skippable After (Seconds)</label>
+                <input type="number" id="ad-skip-offset" value="5" min="0" />
+              </div>
+
+              <div class="ads-divider"></div>
+
+              <label for="ad-role-type">Ad Role Type</label>
+              <select id="ad-role-type">
+                <option value="auto" selected>Auto (play immediately on Load)</option>
+                <option value="preroll">Preroll</option>
+                <option value="midroll">Midroll (uses offset below)</option>
+                <option value="postroll">Postroll</option>
+              </select>
+              <div id="ad-role-offset-wrap" class="ads-subfield" style="display:none;">
+                <label for="ad-role-offset">Midroll Position (Seconds or %)</label>
+                <input type="text" id="ad-role-offset" value="" placeholder="e.g. 90 or 50%" />
+              </div>
+            </div>
+            <!-- 2. Native VMAP -->
+            <div id="ad-panel-vmap" class="form-group" style="display: none;">
+              <label for="ad-url-vmap">Advertisement URL</label>
+              <input type="text" id="ad-url-vmap" placeholder="Paste VMAP XML URL" />
+            </div>
+
+            <!-- 3. Google IMA -->
+            <div id="ad-panel-ima" class="form-group" style="display: none;">
+              <label for="ad-url-ima">Ad Tag URL</label>
+              <input type="text" id="ad-url-ima" placeholder="Paste Google IMA Tag URL" />
+            </div>
+
+            <!-- 4. SIMID -->
+            <div id="ad-panel-simid" class="form-group" style="display: none;">
+              <div class="form-group">
+                <label for="ad-url-simid-vast">VAST URL</label>
+                <input type="text" id="ad-url-simid-vast" placeholder="Paste VAST XML URL (interactive creative is referenced inside the VAST XML itself)" />
+              </div>
+            </div>
+
+            <!-- 5. HTML Overlay -->
+            <div id="ad-panel-html" class="form-group" style="display: none;">
+              <div class="ads-subpanel">
+                
+                <div class="form-group">
+                  <label for="ad-html-source-type">Creative Source</label>
+                  <div class="select-wrapper">
+                    <select id="ad-html-source-type">
+                      <option value="string" selected>HTML String</option>
+                      <option value="url">HTML URL</option>
+                      <option value="image">Image URL</option>
+                      <option value="vast">VAST URL</option>
+                      <option value="xml">Raw VAST XML</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="ad-url-html-content" id="ad-html-content-label">Creative Content / URL</label>
+                  <input type="text" id="ad-url-html-content" placeholder="Paste HTML Content String..." />
+                </div>
+
+                <div class="form-group">
+                  <label for="ad-html-target">Render Target</label>
+                  <div class="select-wrapper">
+                    <select id="ad-html-target">
+                      <option value="player" selected>Player Container</option>
+                      <option value="external">External Slot (#sandbox-external-slot)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-group" id="ad-html-position-wrap">
+                  <label for="ad-html-position">Position <span style="font-weight: normal; color: var(--text-secondary);">(Player Container only)</span></label>
+                  <div class="select-wrapper">
+                    <select id="ad-html-position">
+                      <option value="bottom" selected>Bottom</option>
+                      <option value="top">Top</option>
+                      <option value="left">Left</option>
+                      <option value="right">Right</option>
+                      <option value="center">Center</option>
+                    </select>
+                  </div>
+                </div>
+              
+                <div class="form-group">
+                <div class="form-group">
+                  <label for="ad-html-role-type">Ad Role Type</label>
+                  <select id="ad-html-role-type">
+                    <option value="auto" selected>Auto (show immediately on Load)</option>
+                    <option value="preroll">Preroll</option>
+                    <option value="midroll">Midroll (uses offset below)</option>
+                    <option value="postroll">Postroll</option>
+                  </select>
+                  <div id="ad-html-role-offset-wrap" class="ads-subfield" style="display:none;">
+                    <label for="ad-html-role-offset">Midroll Position (Seconds or %)</label>
+                    <input type="text" id="ad-html-role-offset" value="" placeholder="e.g. 90 or 50%" />
+                  </div>
+                </div>
+                </div>
+
+                <div class="form-group" id="ad-html-size-wrap">
+                  <label>Size (px) <span id="ad-html-size-default-hint" style="font-weight: normal; color: var(--text-secondary);">(default: fills content)</span></label>
+                  <div class="input-row">
+                    <input type="number" id="ad-html-width" placeholder="Width" min="1" />
+                    <input type="number" id="ad-html-height" placeholder="Height" min="1" />
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="ad-html-duration">Duration (Seconds)</label>
+                  <input type="number" id="ad-html-duration" value="15" min="1" />
+                </div>
+
+                <div class="form-group">
+                  <label for="ad-html-close-delay">Close Delay (Seconds)</label>
+                  <input type="number" id="ad-html-close-delay" value="0" min="0" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Universal Load Button -->
+          <div style="margin-top: 24px">
+            <button class="btn btn-primary" id="load-source-btn">
+              <span>⚡ Load Source</span>
+            </button>
+          </div>
+        </div>
+
+
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notification container -->
+  <div id="sandbox-toast" class="sandbox-toast" role="alert" aria-live="polite"></div>
+
+  <!-- Script importing compiled library and setup switch triggers -->
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
+</html>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>HTML URL Interactive Test</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: transparent;
+    }
+
+    .ad {
+      position: relative;
+
+      width: 100%;
+      height: 100%;
+
+      min-width: 0;
+      min-height: 0;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      padding: 10px;
+
+      background: #111111;
+
+      border: 3px solid #00ff88;
+      border-radius: 10px;
+
+      color: #ffffff;
+
+      overflow: hidden;
+    }
+
+    .inner {
+      width: 100%;
+      height: 100%;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      gap: 20px;
+
+      min-width: 0;
+    }
+
+    .title {
+      font-size: clamp(14px, 3vw, 26px);
+      font-weight: 700;
+
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .button {
+      flex-shrink: 0;
+
+      padding: 8px 16px;
+
+      border: 0;
+      border-radius: 6px;
+
+      background: #00ff88;
+      color: #000000;
+
+      font-weight: 700;
+
+      cursor: pointer;
+    }
+
+    .status {
+      position: absolute;
+
+      left: 8px;
+      bottom: 5px;
+
+      font-size: 9px;
+
+      opacity: 0.65;
+    }
+
+    @media (max-width: 450px) {
+      .inner {
+        gap: 8px;
+      }
+
+      .title {
+        font-size: 14px;
+      }
+
+      .button {
+        padding: 5px 8px;
+        font-size: 10px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="ad">
+
+    <div class="inner">
+
+      <div class="title" id="title">
+        INTERACTIVE HTML URL
+      </div>
+
+      <button
+        class="button"
+        id="button"
+      >
+        CLICK ME
+      </button>
+
+    </div>
+
+    <div
+      class="status"
+      id="status"
+    >
+      Loading...
+    </div>
+
+  </div>
+
+  <script>
+
+    const title = document.getElementById("title");
+    const button = document.getElementById("button");
+    const status = document.getElementById("status");
+
+    button.addEventListener("click", function () {
+
+      title.textContent = "CLICK WORKED!";
+
+      status.textContent =
+        "JavaScript interaction successful";
+
+    });
+
+    function updateSize() {
+
+      status.textContent =
+        "Iframe: " +
+        window.innerWidth +
+        " × " +
+        window.innerHeight;
+
+    }
+
+    window.addEventListener(
+      "resize",
+      updateSize
+    );
+
+    updateSize();
+
+  </script>
+
+</body>
+</html>

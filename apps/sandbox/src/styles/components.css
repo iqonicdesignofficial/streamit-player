@@ -1,0 +1,957 @@
+/* Stage / Player frame - Premium dark frame with zero padding and locked aspect ratio */
+.player-stage {
+  position: relative;
+  background: #000000;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  line-height: 0;
+  width: 100%;
+}
+
+.player-stage:has(player-player[display-mode='vertical']) {
+  overflow: visible;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+/* Overriding custom element style to look dark and fit frame */
+#test-player {
+  width: 100%;
+  height: 100%;
+  --player-border-radius: 12px;
+}
+
+/* Card styling: Stripe/Linear inspired */
+.panel-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.panel-card h3 {
+  margin: 0 0 16px 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-color);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+}
+
+/* Controls Form fields */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-group label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--label-color);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1.3;
+}
+
+/* Custom select wrapper for modern arrow */
+.select-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.select-wrapper::after {
+  content: '';
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 5px;
+  background-color: var(--label-color);
+  clip-path: polygon(100% 0, 0 0, 50% 100%);
+  pointer-events: none;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+  z-index: 2;
+}
+
+select,
+input[type='text'],
+input[type='number'] {
+  padding: 10px 36px 10px 14px;
+  min-height: 42px;
+  border-radius: 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--text-color);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+  width: 100%;
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  line-height: 1.4;
+}
+
+input[type='text'],
+input[type='number'] {
+  padding-right: 14px;
+}
+
+select:focus,
+input[type='text']:focus,
+input[type='number']:focus {
+  border-color: var(--active-color);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+}
+
+select option {
+  background-color: var(--card-bg, #ffffff);
+  color: var(--text-color, #0f172a);
+  padding: 8px 12px;
+  font-size: 0.875rem;
+}
+
+.ads-subpanel {
+  background: var(--bg-color);
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* A row of two number inputs side by side (e.g. Max Width / Max Height) */
+.input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.input-row input[type='number'] {
+  width: auto;
+  min-width: 0;
+  flex: 1;
+}
+
+/* Custom file picker wrapper */
+.file-input-wrapper {
+  position: relative;
+  overflow: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+.file-input-wrapper input[type='file'] {
+  font-size: 100px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.file-input-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px dashed var(--border-color);
+  padding: 24px 16px;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--label-color);
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.85rem;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.file-input-btn:hover {
+  border-color: var(--active-color);
+  background: rgba(99, 102, 241, 0.02);
+  color: var(--text-color);
+}
+
+/* Stream helper buttons */
+.stream-btn-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px;
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+  background: #f8fafc;
+  text-align: center;
+}
+
+.stream-btn-panel p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--label-color);
+  line-height: 1.4;
+}
+
+/* Standard buttons */
+.btn {
+  font-family: inherit;
+  font-weight: 500;
+  font-size: 0.9rem;
+  padding: 10px 20px;
+  min-height: 44px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+  outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.btn-primary {
+  background: var(--active-color);
+  color: #ffffff;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover {
+  background: var(--active-hover);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.btn-secondary {
+  background: var(--card-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  border-color: var(--active-color);
+  color: var(--active-color);
+}
+
+/* Ads panel: inline warnings */
+.ads-warning {
+  display: none;
+  font-size: 0.78rem;
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+/* A field that's conditionally shown beneath the select that controls it
+   (e.g. a seconds offset that only applies to one dropdown option) -
+   indented and top-spaced so it reads as "belonging to" that field. */
+.ads-subfield {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding-left: 14px;
+  border-left: 2px solid var(--border-color);
+}
+
+/* Separates logically distinct groups of ad fields (e.g. skip behavior vs.
+   playback timing) within the same panel. */
+.ads-divider {
+  border-top: 1px solid var(--border-color);
+  margin: 20px 0 4px 0;
+}
+
+/* Telemetry Grid info */
+.telemetry-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.telemetry-item {
+  background: #f8fafc;
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.telemetry-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--label-color);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.telemetry-value {
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Chapters Demo Tabs & Segmented Control */
+.chapters-tabs-segmented {
+  display: inline-flex;
+  background: #f1f5f9; /* Slate 100 */
+  padding: 4px;
+  border-radius: 9999px;
+  border: 1px solid var(--border-color);
+  gap: 2px;
+  align-self: center;
+}
+.demo-tab-btn {
+  padding: 6px 16px;
+  border: none;
+  background: transparent;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-family: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: var(--label-color);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.demo-tab-btn:hover {
+  color: var(--text-color);
+}
+.demo-tab-btn.active {
+  background: #ffffff;
+  color: var(--active-color);
+  box-shadow:
+    0 1px 3px 0 rgba(0, 0, 0, 0.08),
+    0 1px 2px 0 rgba(0, 0, 0, 0.04);
+}
+
+/* Premium Chapter Cards for Standard Sidebar Layout */
+.sidebar-chapter-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: left;
+  position: relative;
+  margin-bottom: 8px;
+}
+.sidebar-chapter-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 0;
+  background-color: var(--active-color);
+  border-radius: 0 4px 4px 0;
+  transition: height 0.25s ease;
+}
+.sidebar-chapter-item:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  transform: translateX(2px);
+}
+.sidebar-chapter-item.active {
+  background: rgba(99, 102, 241, 0.03);
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 12px -2px rgba(99, 102, 241, 0.05);
+}
+.sidebar-chapter-item.active::before {
+  height: 50%;
+}
+.sidebar-chapter-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-color);
+  flex-grow: 1;
+}
+.sidebar-chapter-item.active .sidebar-chapter-title {
+  color: var(--active-color);
+}
+.sidebar-chapter-description {
+  font-size: 0.75rem;
+  color: var(--label-color);
+  font-weight: 400;
+  margin-top: 3px;
+  line-height: 1.4;
+}
+.sidebar-chapter-time-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 4px 8px;
+  background: #f1f5f9;
+  color: var(--label-color);
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+.sidebar-chapter-item.active .sidebar-chapter-time-badge {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--active-color);
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+/* Premium Chapter Cards for Course Syllabus View */
+.course-chapter-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  margin-bottom: 8px;
+}
+.course-chapter-item:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+.course-chapter-item.active {
+  background: rgba(99, 102, 241, 0.02);
+  border-color: var(--active-color);
+  box-shadow: 0 4px 12px -2px rgba(99, 102, 241, 0.04);
+}
+.course-chapter-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.course-chapter-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-color);
+  text-align: left;
+}
+.course-chapter-item.active .course-chapter-title {
+  color: var(--active-color);
+  font-weight: 600;
+}
+.course-checkmark-outer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #cbd5e1;
+  background: #ffffff;
+  transition: all 0.25s ease;
+  flex-shrink: 0;
+  position: relative;
+}
+.course-checkmark-inner {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: transparent;
+  transition: all 0.25s ease;
+}
+.course-chapter-item.completed .course-checkmark-outer {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+}
+.course-chapter-item.completed .course-checkmark-outer::after {
+  content: '✓';
+  color: #10b981;
+  font-size: 11px;
+  font-weight: 700;
+  position: absolute;
+}
+.course-chapter-item.active .course-checkmark-outer {
+  border-color: var(--active-color);
+}
+.course-chapter-duration {
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--label-color);
+  flex-shrink: 0;
+}
+.course-chapter-item.active .course-chapter-duration {
+  color: var(--active-color);
+}
+
+/* Premium Chapter Cards for OTT Scene Selection View */
+.ott-scene-card {
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.ott-scene-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px -8px rgba(15, 23, 42, 0.08);
+  border-color: #cbd5e1;
+}
+.ott-scene-card.active {
+  border-color: var(--active-color);
+  box-shadow:
+    0 0 0 3px rgba(99, 102, 241, 0.15),
+    0 8px 16px -4px rgba(99, 102, 241, 0.08);
+}
+.ott-scene-thumb-placeholder {
+  height: 120px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+.ott-scene-thumb-placeholder::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to bottom, rgba(15, 23, 42, 0) 40%, rgba(15, 23, 42, 0.6) 100%);
+  z-index: 1.5;
+  pointer-events: none;
+}
+.ott-scene-thumb-placeholder svg {
+  width: 32px;
+  height: 32px;
+  fill: rgba(255, 255, 255, 0.15);
+  transition:
+    fill 0.3s ease,
+    transform 0.3s ease;
+}
+.ott-scene-card:hover .ott-scene-thumb-placeholder svg {
+  fill: rgba(255, 255, 255, 0.35);
+  transform: scale(1.1);
+}
+.ott-scene-duration-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 2;
+}
+.ott-scene-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 1;
+}
+.ott-scene-card:hover .ott-scene-thumb-img {
+  transform: scale(1.06);
+}
+.ott-scene-info {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #ffffff;
+  text-align: left;
+}
+.ott-scene-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ott-scene-card.active .ott-scene-title {
+  color: var(--active-color);
+}
+.ott-scene-start {
+  font-size: 0.75rem;
+  color: var(--label-color);
+}
+.ott-scene-progress-bar {
+  height: 4px;
+  background: #f1f5f9;
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+}
+.ott-scene-progress-fill {
+  height: 100%;
+  background: var(--active-color);
+  width: 0;
+  transition: width 0.1s ease;
+}
+
+/* Custom header layout for the chapter demonstrator card */
+.chapters-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.chapters-header-text {
+  text-align: left;
+}
+.chapters-panel-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-color);
+  margin: 0 0 4px 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  text-transform: none !important;
+  letter-spacing: -0.015em !important;
+}
+.chapters-panel-subtitle {
+  font-size: 0.85rem;
+  color: var(--label-color);
+  margin: 0;
+  font-weight: 400;
+}
+
+/* Custom container override for premium card styling */
+#external-chapters-panel {
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow:
+    0 10px 30px -10px rgba(0, 0, 0, 0.04),
+    0 1px 3px 0 rgba(0, 0, 0, 0.02);
+  border-color: var(--border-color);
+}
+
+/* Player Stage Relative Container */
+.player-stage-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+/* Playlist URL Inputs Configurator Styles */
+.playlist-url-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.playlist-url-row input[type='text'] {
+  flex: 1;
+}
+
+.remove-url-btn {
+  background: #fef2f2;
+  border: 1px solid #fee2e2;
+  color: #ef4444;
+  cursor: pointer;
+  border-radius: 6px;
+  min-height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.remove-url-btn:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+  transform: scale(1.05);
+}
+
+.remove-url-btn:active {
+  transform: scale(0.95);
+}
+
+/* Scrollable Playlist URL container for Vertical Player mode */
+.vertical-playlist-scroll {
+  max-height: 150px;
+  overflow-y: auto;
+  padding-right: 4px;
+  /* Smooth native scrolling */
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+#video-url-extra-container:not(:empty),
+#video-file-extra-container:not(:empty) {
+  margin-top: 8px;
+}
+
+.vertical-playlist-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.vertical-playlist-scroll::-webkit-scrollbar-track {
+  background: var(--input-bg);
+  border-radius: 3px;
+}
+
+.vertical-playlist-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.vertical-playlist-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Example Sources Grid */
+.examples-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.example-group h4 {
+  margin: 0 0 8px 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--label-color);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.example-btn {
+  margin-bottom: 8px;
+  background: #f1f5f9;
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  font-size: 0.8rem;
+  padding: 8px 12px;
+  justify-content: flex-start;
+  min-height: auto;
+}
+
+.example-btn:hover {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+}
+
+/* --- Sandbox Empty State Overlay --- */
+.sandbox-empty-state {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #090d16;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  font-family: 'Outfit', sans-serif;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 0.35s linear;
+  border-radius: inherit;
+}
+
+.sandbox-empty-state.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.sandbox-empty-state-content {
+  text-align: center;
+  padding: 24px;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: normal;
+}
+
+.sandbox-empty-state-play-btn {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--player-primary-color, #6366f1);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 25px rgba(99, 102, 241, 0.4);
+  transition:
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s ease;
+  margin-bottom: 24px;
+  outline: none;
+  padding: 0;
+}
+
+.sandbox-empty-state-play-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 12px 30px rgba(99, 102, 241, 0.55);
+}
+
+.sandbox-empty-state-play-btn:active {
+  transform: scale(0.96);
+}
+
+.sandbox-empty-state-play-btn svg {
+  width: 32px;
+  height: 32px;
+  fill: #ffffff;
+  transform: translateX(2px);
+  display: block;
+}
+
+.sandbox-empty-state-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 0 0 10px 0;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.sandbox-empty-state-text {
+  font-size: 0.95rem;
+  color: #94a3b8;
+  margin: 0 0 16px 0;
+  line-height: 1.5;
+}
+
+.sandbox-empty-state-hint {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Hide controls bar and seekbar when player is empty using shadow parts */
+.player-stage.empty #test-player::part(controls-bar) {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.player-stage.empty #test-player::part(seekbar) {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.player-stage.empty #test-player {
+  pointer-events: none !important;
+}
+
+/* Vertical Player Layout adaptation */
+.player-stage:has(player-player[display-mode='vertical']) .sandbox-empty-state-content {
+  max-width: 280px;
+  padding: 16px;
+}
+
+.player-stage:has(player-player[display-mode='vertical']) .sandbox-empty-state-play-btn {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 16px;
+}
+
+.player-stage:has(player-player[display-mode='vertical']) .sandbox-empty-state-play-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+.player-stage:has(player-player[display-mode='vertical']) .sandbox-empty-state-title {
+  font-size: 1.2rem;
+}
+
+.player-stage:has(player-player[display-mode='vertical']) .sandbox-empty-state-text {
+  font-size: 0.85rem;
+}
+
+.player-stage:has(player-player[display-mode='vertical']) .sandbox-empty-state-hint {
+  font-size: 0.7rem;
+}
+
+/* --- Sandbox Toast Notification --- */
+.sandbox-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+  padding: 12px 24px;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.3s linear;
+}
+
+.sandbox-toast.show {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}

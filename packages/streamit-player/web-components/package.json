@@ -1,0 +1,111 @@
+{
+  "name": "@streamit-player/web-components-internal",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Lit-based Custom Elements UI layer for @player/core - drop-in <player-player> web component with theming, plugins, and gesture controls.",
+  "license": "Apache-2.0",
+  "author": "Iqonic Design",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iqonicdesignofficial/streamit-player.git",
+    "directory": "packages/web-components"
+  },
+  "homepage": "https://github.com/iqonicdesignofficial/streamit-player#readme",
+  "bugs": {
+    "url": "https://github.com/iqonicdesignofficial/streamit-player/issues"
+  },
+  "keywords": ["video", "player", "hls", "dash", "drm", "vast", "vmap", "ads", "headless", "player-sdk", "web-components", "lit", "custom-elements"],
+  "type": "module",
+  "main": "./dist/web-components.cjs",
+  "module": "./dist/web-components.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": [
+    "./dist/web-components.js",
+    "./dist/web-components.cjs",
+    "./dist/Player.js",
+    "./dist/Player.cjs",
+    "./dist/PlayButton.js",
+    "./dist/PlayButton.cjs",
+    "./dist/Seekbar.js",
+    "./dist/Seekbar.cjs",
+    "./dist/VolumeControl.js",
+    "./dist/VolumeControl.cjs",
+    "./dist/SeekButton.js",
+    "./dist/SeekButton.cjs",
+    "./dist/ChaptersButton.js",
+    "./dist/ChaptersButton.cjs",
+    "./dist/VerticalControls.js",
+    "./dist/VerticalControls.cjs"
+  ],
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/web-components.js",
+      "require": "./dist/web-components.cjs"
+    },
+    "./Player": {
+      "types": "./dist/Player.d.ts",
+      "import": "./dist/Player.js",
+      "require": "./dist/Player.cjs"
+    },
+    "./PlayButton": {
+      "types": "./dist/PlayButton.d.ts",
+      "import": "./dist/PlayButton.js",
+      "require": "./dist/PlayButton.cjs"
+    },
+    "./Seekbar": {
+      "types": "./dist/Seekbar.d.ts",
+      "import": "./dist/Seekbar.js",
+      "require": "./dist/Seekbar.cjs"
+    },
+    "./VolumeControl": {
+      "types": "./dist/VolumeControl.d.ts",
+      "import": "./dist/VolumeControl.js",
+      "require": "./dist/VolumeControl.cjs"
+    },
+    "./SeekButton": {
+      "types": "./dist/SeekButton.d.ts",
+      "import": "./dist/SeekButton.js",
+      "require": "./dist/SeekButton.cjs"
+    },
+    "./ChaptersButton": {
+      "types": "./dist/ChaptersButton.d.ts",
+      "import": "./dist/ChaptersButton.js",
+      "require": "./dist/ChaptersButton.cjs"
+    },
+    "./VerticalControls": {
+      "types": "./dist/VerticalControls.d.ts",
+      "import": "./dist/VerticalControls.js",
+      "require": "./dist/VerticalControls.cjs"
+    },
+    "./Themes": {
+      "types": "./dist/Themes.d.ts",
+      "import": "./dist/Themes.js",
+      "require": "./dist/Themes.cjs"
+    },
+    "./IconRegistry": {
+      "types": "./dist/icons/IconRegistry.d.ts",
+      "import": "./dist/IconRegistry.js",
+      "require": "./dist/IconRegistry.cjs"
+    }
+  },
+  "scripts": {
+    "build": "vite build",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@player/core": "^1.0.0",
+    "lit": "^3.1.2"
+  },
+  "devDependencies": {
+    "@open-wc/testing-helpers": "^3.0.1",
+    "@vitest/coverage-v8": "^4.1.11",
+    "jsdom": "^27.0.1",
+    "vite-plugin-dts": "^3.9.1",
+    "vitest": "^4.1.11"
+  }
+}

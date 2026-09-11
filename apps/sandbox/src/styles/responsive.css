@@ -1,0 +1,134 @@
+/* ==========================================
+   Responsive Overrides
+   ========================================== */
+
+/* Center sandbox container on ultrawide displays */
+@media (min-width: 1440px) {
+  .sandbox-container {
+    margin: 32px auto !important;
+    padding: 0 24px !important;
+    box-sizing: border-box !important;
+  }
+}
+
+/* Tablet and Laptop layout */
+@media (max-width: 1024px) {
+  .left-column,
+  .right-column {
+    display: contents; /* Flatten columns into the parent grid layout */
+  }
+  .workspace-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    align-items: stretch !important;
+  }
+  .sandbox-container {
+    margin: 24px 16px;
+  }
+
+  /* Define Mobile/Tablet Stack Order */
+  .player-stage-container {
+    order: 1;
+  }
+  #telemetry-card-container {
+    order: 2;
+  }
+  #config-card-container {
+    order: 3;
+  }
+  #external-chapters-panel {
+    order: 4;
+  }
+}
+
+/* Tablet-specific landscape/portrait grid positioning */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .workspace-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 24px !important;
+  }
+
+  .player-stage-container {
+    grid-column: span 2 !important;
+    grid-row: 1 !important;
+  }
+
+  #telemetry-card-container {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+  }
+
+  #config-card-container {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+  }
+
+  #external-chapters-panel {
+    grid-column: span 2 !important;
+    grid-row: 3 !important;
+  }
+}
+
+/* Mobile Devices */
+@media (max-width: 480px) {
+  .sandbox-container {
+    margin: 16px 12px;
+    gap: 16px;
+  }
+  .panel-card {
+    padding: 16px;
+  }
+  .telemetry-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  /* Chapter Navigation Mobile Optimization */
+  .chapters-panel-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  .chapters-header-text {
+    text-align: center !important;
+  }
+
+  .chapters-tabs-segmented {
+    display: flex !important;
+    width: 100% !important;
+    border-radius: 12px !important;
+    box-sizing: border-box !important;
+    align-self: stretch !important;
+  }
+
+  .demo-tab-btn {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    padding: 8px 4px !important;
+    font-size: 0.72rem !important;
+    text-align: center !important;
+    border-radius: 8px !important;
+    white-space: normal !important;
+    line-height: 1.2 !important;
+  }
+}
+
+/* Very Narrow Devices */
+@media (max-width: 400px) {
+  .telemetry-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .telemetry-item {
+    padding: 10px 12px;
+  }
+  .header-meta h1 {
+    font-size: 1.5rem;
+  }
+  .header-meta p {
+    font-size: 0.85rem;
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "isolatedModules": true,
+    "baseUrl": ".",
+    "paths": {
+      "streamit-player": ["packages/streamit-player/src/index.ts"],
+      "streamit-player/core": ["packages/streamit-player/core/src/index.ts"],
+      "streamit-player/web-components": ["packages/streamit-player/web-components/src/index.ts"]
+    }
+  },
+  "include": [
+    "packages/*/src/**/*",
+    "apps/*/src/**/*",
+    "packages/streamit-player/core/src/types/webkit-eme.d.ts"
+  ],
+  "exclude": ["**/dist/**", "**/node_modules/**"]
+}

@@ -1,0 +1,128 @@
+html {
+  scrollbar-gutter: stable;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-family: 'Outfit', sans-serif;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.sandbox-container {
+  width: 100%;
+  max-width: 1440px;
+  margin: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Header styling */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 16px;
+}
+
+.header-meta h1 {
+  margin: 0 0 4px 0;
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  font-weight: 800;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.02em;
+}
+
+.header-meta p {
+  margin: 0;
+  color: var(--label-color);
+  font-size: 0.95rem;
+}
+
+/* Two Column Layout: Left Column is Player (75%), Right Column is Sidebar (25%) */
+.workspace-grid {
+  display: grid;
+  grid-template-columns: 75fr 25fr;
+  gap: 24px;
+  align-items: start;
+  transition: grid-template-columns 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  align-self: start;
+  min-width: 0;
+}
+
+.right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+@media (min-width: 1025px) {
+  .left-column {
+    position: sticky;
+    top: 24px;
+  }
+
+  .right-column {
+    position: sticky;
+    top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  #telemetry-card-container,
+  #metadata-card-container {
+    flex-shrink: 0;
+  }
+
+  #config-card-container {
+    max-height: 480px;
+    overflow-y: auto;
+    padding-right: 6px;
+    scroll-behavior: smooth;
+    box-sizing: border-box;
+  }
+}
+
+/* Custom Modern Scrollbar */
+.chapters-scroll-container,
+#config-card-container {
+  scroll-behavior: smooth;
+}
+
+.chapters-scroll-container::-webkit-scrollbar,
+#config-card-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chapters-scroll-container::-webkit-scrollbar-track,
+#config-card-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chapters-scroll-container::-webkit-scrollbar-thumb,
+#config-card-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+  transition: background 0.15s ease;
+}
+
+.chapters-scroll-container::-webkit-scrollbar-thumb:hover,
+#config-card-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VAST version="4.2" xmlns="http://www.iab.com/VAST">
+  <Ad id="40001">
+    <InLine>
+      <AdSystem version="1.0">GoldenMace Ad Server</AdSystem>
+      <AdTitle>Golden Mace NonLinear Overlay Sample</AdTitle>
+      <Impression><![CDATA[https://track.example.com/nonlinear/impression]]></Impression>
+      <Creatives>
+        <Creative id="nonlinear-creative-1">
+          <NonLinearAds>
+            <NonLinear id="nonlinear-1" width="300" height="60" minSuggestedDuration="00:00:15">
+              <StaticResource creativeType="image/png"><![CDATA[https://cdn.example.com/ads/overlay-banner.png]]></StaticResource>
+              <NonLinearClickThrough><![CDATA[https://advertiser.example.com/overlay-landing]]></NonLinearClickThrough>
+              <TrackingEvents>
+                <Tracking event="creativeView"><![CDATA[https://track.example.com/nonlinear/creativeView]]></Tracking>
+              </TrackingEvents>
+            </NonLinear>
+          </NonLinearAds>
+        </Creative>
+      </Creatives>
+    </InLine>
+  </Ad>
+</VAST>

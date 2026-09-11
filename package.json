@@ -1,0 +1,26 @@
+{
+  "name": "streamit-player",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @player/sandbox",
+    "build": "npm run build --workspaces --if-present",
+    "format": "prettier --write \"**/*.{ts,json,css,html,md}\"",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "eslint packages apps --ext .ts"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^25.9.1",
+    "@typescript-eslint/eslint-plugin": "^7.8.0",
+    "@typescript-eslint/parser": "^7.8.0",
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.5",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11",
+    "vitest": "^4.1.11"
+  }
+}

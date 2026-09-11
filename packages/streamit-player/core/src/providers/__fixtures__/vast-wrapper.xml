@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VAST version="4.0" xmlns="http://www.iab.com/VAST">
+  <Ad id="30001">
+    <Wrapper>
+      <AdSystem version="1.0">GoldenMace Wrapper Server</AdSystem>
+      <VASTAdTagURI><![CDATA[https://ads.example.com/vast-linear.xml]]></VASTAdTagURI>
+      <Impression id="wrapper-imp-1"><![CDATA[https://track.example.com/wrapper/impression]]></Impression>
+      <Error><![CDATA[https://track.example.com/wrapper/error?code=[ERRORCODE]]]></Error>
+      <Creatives>
+        <Creative id="wrapper-creative-1">
+          <Linear>
+            <TrackingEvents>
+              <Tracking event="start"><![CDATA[https://track.example.com/wrapper/start]]></Tracking>
+            </TrackingEvents>
+          </Linear>
+        </Creative>
+      </Creatives>
+    </Wrapper>
+  </Ad>
+</VAST>

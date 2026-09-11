@@ -1,0 +1,93 @@
+{
+  "name": "@streamit-player/core-internal",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Headless, framework-agnostic video playback engine with HLS/DASH/DRM, VAST/VMAP/SIMID ads, and Smart Seek thumbnails.",
+  "license": "Apache-2.0",
+  "author": "Iqonic Design",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iqonicdesignofficial/streamit-player.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/iqonicdesignofficial/streamit-player#readme",
+  "bugs": {
+    "url": "https://github.com/iqonicdesignofficial/streamit-player/issues"
+  },
+  "keywords": ["video", "player", "hls", "dash", "drm", "vast", "vmap", "ads", "headless", "player-sdk"],
+  "type": "module",
+  "main": "./dist/core.cjs",
+  "module": "./dist/core.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/core.js",
+      "require": "./dist/core.cjs"
+    },
+    "./PlayerController": {
+      "types": "./dist/PlayerController.d.ts",
+      "import": "./dist/PlayerController.js",
+      "require": "./dist/PlayerController.cjs"
+    },
+    "./KeyboardManager": {
+      "types": "./dist/KeyboardManager.d.ts",
+      "import": "./dist/KeyboardManager.js",
+      "require": "./dist/KeyboardManager.cjs"
+    },
+    "./TimelineMath": {
+      "types": "./dist/TimelineMath.d.ts",
+      "import": "./dist/TimelineMath.js",
+      "require": "./dist/TimelineMath.cjs"
+    },
+    "./utils": {
+      "types": "./dist/utils.d.ts",
+      "import": "./dist/utils.js",
+      "require": "./dist/utils.cjs"
+    },
+    "./ThumbnailProviders": {
+      "types": "./dist/providers/ThumbnailProviders.d.ts",
+      "import": "./dist/ThumbnailProviders.js",
+      "require": "./dist/ThumbnailProviders.cjs"
+    },
+    "./DrmManager": {
+      "types": "./dist/DrmManager.d.ts",
+      "import": "./dist/DrmManager.js",
+      "require": "./dist/DrmManager.cjs"
+    },
+    "./DrmValidator": {
+      "types": "./dist/DrmValidator.d.ts",
+      "import": "./dist/DrmValidator.js",
+      "require": "./dist/DrmValidator.cjs"
+    }
+  },
+  "scripts": {
+    "build": "vite build",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "dashjs": "^5.1.1",
+    "hls.js": "^1.5.8"
+  },
+  "peerDependenciesMeta": {
+    "dashjs": {
+      "optional": true
+    },
+    "hls.js": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.11",
+    "dashjs": "^5.1.1",
+    "hls.js": "^1.5.8",
+    "jsdom": "^27.0.1",
+    "vite-plugin-dts": "^3.9.1",
+    "vitest": "^4.1.11"
+  }
+}

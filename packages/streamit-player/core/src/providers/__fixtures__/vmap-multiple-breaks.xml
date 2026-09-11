@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vmap:VMAP xmlns:vmap="http://www.iab.net/videosuite/vmap" version="1.0.1">
+  <vmap:AdBreak timeOffset="start" breakType="linear" breakId="preroll-1">
+    <vmap:AdSource id="preroll-1-src" allowMultipleAds="false" followRedirects="true">
+      <vmap:AdTagURI templateType="vast4"><![CDATA[https://ads.example.com/preroll.xml]]></vmap:AdTagURI>
+    </vmap:AdSource>
+    <vmap:TrackingEvents>
+      <vmap:Tracking event="breakStart"><![CDATA[https://track.example.com/vmap/preroll/breakStart]]></vmap:Tracking>
+      <vmap:Tracking event="breakEnd"><![CDATA[https://track.example.com/vmap/preroll/breakEnd]]></vmap:Tracking>
+    </vmap:TrackingEvents>
+  </vmap:AdBreak>
+  <vmap:AdBreak timeOffset="00:00:30.000" breakType="linear" breakId="midroll-1">
+    <vmap:AdSource id="midroll-1-src" allowMultipleAds="false" followRedirects="true">
+      <vmap:AdTagURI templateType="vast4"><![CDATA[https://ads.example.com/midroll.xml]]></vmap:AdTagURI>
+    </vmap:AdSource>
+    <vmap:TrackingEvents>
+      <vmap:Tracking event="breakStart"><![CDATA[https://track.example.com/vmap/midroll/breakStart]]></vmap:Tracking>
+      <vmap:Tracking event="breakEnd"><![CDATA[https://track.example.com/vmap/midroll/breakEnd]]></vmap:Tracking>
+      <vmap:Tracking event="error"><![CDATA[https://track.example.com/vmap/midroll/error]]></vmap:Tracking>
+    </vmap:TrackingEvents>
+  </vmap:AdBreak>
+  <vmap:AdBreak timeOffset="end" breakType="linear" breakId="postroll-1">
+    <vmap:AdSource id="postroll-1-src" allowMultipleAds="false" followRedirects="true">
+      <vmap:AdTagURI templateType="vast4"><![CDATA[https://ads.example.com/postroll.xml]]></vmap:AdTagURI>
+    </vmap:AdSource>
+    <vmap:TrackingEvents>
+      <vmap:Tracking event="breakStart"><![CDATA[https://track.example.com/vmap/postroll/breakStart]]></vmap:Tracking>
+      <vmap:Tracking event="breakEnd"><![CDATA[https://track.example.com/vmap/postroll/breakEnd]]></vmap:Tracking>
+    </vmap:TrackingEvents>
+  </vmap:AdBreak>
+</vmap:VMAP>

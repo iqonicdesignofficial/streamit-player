@@ -1,0 +1,84 @@
+{
+  "name": "streamit-player",
+  "version": "1.0.0",
+  "description": "Enterprise-grade HTML5 video player with adaptive streaming (HLS/DASH), multi-DRM, VAST/VMAP/SIMID advertising, and Lit web components.",
+  "license": "Apache-2.0",
+  "author": "Iqonic Design",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iqonicdesignofficial/streamit-player.git",
+    "directory": "packages/streamit-player"
+  },
+  "homepage": "https://github.com/iqonicdesignofficial/streamit-player#readme",
+  "bugs": {
+    "url": "https://github.com/iqonicdesignofficial/streamit-player/issues"
+  },
+  "keywords": [
+    "video",
+    "player",
+    "hls",
+    "dash",
+    "drm",
+    "vast",
+    "vmap",
+    "ads",
+    "headless",
+    "web-components",
+    "lit",
+    "streamit-player"
+  ],
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/src/index.d.ts",
+  "unpkg": "./dist/streamit-player.iife.min.js",
+  "jsdelivr": "./dist/streamit-player.iife.min.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./core": {
+      "types": "./dist/core/src/index.d.ts",
+      "import": "./dist/core/index.js",
+      "require": "./dist/core/index.cjs"
+    },
+    "./web-components": {
+      "types": "./dist/web-components/src/index.d.ts",
+      "import": "./dist/web-components/index.js",
+      "require": "./dist/web-components/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "vite build && vite build --mode cdn && vite build --mode cdn-unminified",
+    "prepublishOnly": "npm run build && npm test",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "lit": "^3.1.2"
+  },
+  "peerDependencies": {
+    "dashjs": "^5.1.1",
+    "hls.js": "^1.5.8"
+  },
+  "devDependencies": {
+    "@open-wc/testing-helpers": "^3.0.1",
+    "@vitest/coverage-v8": "^4.1.11",
+    "dashjs": "^5.1.1",
+    "esbuild": "^0.21.5",
+    "hls.js": "^1.5.8",
+    "jsdom": "^27.0.1",
+    "vite": "^5.2.11",
+    "vite-plugin-dts": "^3.9.1",
+    "vitest": "^4.1.11"
+  }
+}

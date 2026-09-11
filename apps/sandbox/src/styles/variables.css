@@ -1,0 +1,20 @@
+:root {
+  --bg-color: #f8fafc; /* Slate 50 */
+  --card-bg: #ffffff; /* White */
+  --text-color: #0f172a; /* Slate 900 */
+  --text-secondary: #64748b; /* Slate 500 */
+  --border-color: #e2e8f0; /* Slate 200 */
+  --label-color: #475569; /* Slate 600 */
+  --input-bg: #ffffff;
+  --input-border: #cbd5e1;
+  --active-color: #6366f1; /* Indigo 500 */
+  --active-hover: #4f46e5; /* Indigo 600 */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+
+  /* SDK player overrides */
+  --player-primary-color: #6366f1;
+  --player-border-radius: 12px;
+  --player-panel-bg: rgba(15, 23, 42, 0.9);
+  --player-panel-border: rgba(255, 255, 255, 0.08);
+}

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VAST version="4.2" xmlns="http://www.iab.com/VAST">
+  <Ad id="20001" sequence="1">
+    <InLine>
+      <AdSystem version="1.0">GoldenMace Ad Server</AdSystem>
+      <AdTitle>Golden Mace Linear Sample Ad</AdTitle>
+      <Impression id="imp-1"><![CDATA[https://track.example.com/impression?id=1]]></Impression>
+      <Impression id="imp-2"><![CDATA[https://track.example.com/impression?id=2]]></Impression>
+      <Creatives>
+        <Creative id="creative-1" sequence="1">
+          <Linear skipoffset="00:00:05">
+            <Duration>00:00:30</Duration>
+            <TrackingEvents>
+              <Tracking event="start"><![CDATA[https://track.example.com/start]]></Tracking>
+              <Tracking event="firstQuartile"><![CDATA[https://track.example.com/firstQuartile]]></Tracking>
+              <Tracking event="midpoint"><![CDATA[https://track.example.com/midpoint]]></Tracking>
+              <Tracking event="complete"><![CDATA[https://track.example.com/complete]]></Tracking>
+            </TrackingEvents>
+            <VideoClicks>
+              <ClickThrough id="click-1"><![CDATA[https://advertiser.example.com/landing]]></ClickThrough>
+              <ClickTracking id="clicktrack-1"><![CDATA[https://track.example.com/click]]></ClickTracking>
+            </VideoClicks>
+            <MediaFiles>
+              <MediaFile id="media-hi" delivery="progressive" type="video/mp4" bitrate="2000" width="1920" height="1080">
+                <![CDATA[https://cdn.example.com/ads/linear-hi.mp4]]>
+              </MediaFile>
+              <MediaFile id="media-lo" delivery="progressive" type="video/mp4" bitrate="500" width="640" height="360">
+                <![CDATA[https://cdn.example.com/ads/linear-lo.mp4]]>
+              </MediaFile>
+            </MediaFiles>
+          </Linear>
+        </Creative>
+      </Creatives>
+      <Extensions />
+    </InLine>
+  </Ad>
+</VAST>

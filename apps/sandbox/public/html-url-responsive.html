@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Responsive HTML URL Test</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: transparent;
+    }
+
+    .ad {
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      min-height: 0;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      padding: 10px 18px;
+
+      background: linear-gradient(
+        135deg,
+        #7c3aed,
+        #2563eb
+      );
+
+      border: 3px solid #ffffff;
+      border-radius: 12px;
+
+      color: #ffffff;
+
+      overflow: hidden;
+    }
+
+    .content {
+      width: 100%;
+      min-width: 0;
+
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+
+      gap: 20px;
+    }
+
+    .text {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .title {
+      font-size: clamp(14px, 4vw, 30px);
+      font-weight: 700;
+
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .subtitle {
+      margin-top: 5px;
+
+      font-size: clamp(9px, 1.5vw, 14px);
+
+      opacity: 0.9;
+
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .button {
+      flex-shrink: 0;
+
+      padding: 9px 18px;
+
+      border: 0;
+      border-radius: 7px;
+
+      background: #ffffff;
+      color: #2563eb;
+
+      font-size: clamp(10px, 1.5vw, 15px);
+      font-weight: 700;
+
+      cursor: pointer;
+    }
+
+    /*
+     * RESPONSIVE BREAKPOINT
+     *
+     * The layout intentionally changes when the
+     * iframe becomes narrow.
+     */
+    @media (max-width: 500px) {
+
+      .ad {
+        padding: 6px 10px;
+        border-width: 2px;
+        border-radius: 8px;
+      }
+
+      .content {
+        flex-direction: column;
+        justify-content: center;
+        align-items: stretch;
+
+        gap: 6px;
+      }
+
+      .text {
+        text-align: center;
+      }
+
+      .title {
+        font-size: 16px;
+        white-space: nowrap;
+      }
+
+      .subtitle {
+        display: none;
+      }
+
+      .button {
+        align-self: center;
+
+        padding: 5px 12px;
+
+        font-size: 11px;
+      }
+    }
+
+    /*
+     * VERY SMALL HEIGHT
+     *
+     * This makes the creative visibly adapt in
+     * miniplayer / very short iframe situations.
+     */
+    @media (max-height: 55px) {
+
+      .ad {
+        padding: 3px 8px;
+        border-width: 2px;
+      }
+
+      .content {
+        gap: 8px;
+      }
+
+      .title {
+        font-size: 12px;
+      }
+
+      .subtitle {
+        display: none;
+      }
+
+      .button {
+        padding: 3px 8px;
+        font-size: 9px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="ad">
+
+    <div class="content">
+
+      <div class="text">
+
+        <div class="title" id="title">
+          RESPONSIVE HTML URL TEST
+        </div>
+
+        <div class="subtitle">
+          Layout changes when the iframe becomes smaller
+        </div>
+
+      </div>
+
+      <button
+        class="button"
+        id="button"
+      >
+        CLICK ME
+      </button>
+
+    </div>
+
+  </div>
+
+  <script>
+    const title = document.getElementById("title");
+
+    document
+      .getElementById("button")
+      .addEventListener("click", function () {
+
+        title.textContent = "RESPONSIVE CLICK WORKED!";
+
+      });
+  </script>
+
+</body>
+</html>
