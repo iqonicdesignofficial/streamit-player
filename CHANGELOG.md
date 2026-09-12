@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-09-12
+
 ### Fixed
 
 - Seeking back into the DVR window of a live DASH stream now stays at the chosen position. Before,
@@ -38,5 +40,6 @@ Initial public release of `streamit-player`.
 - ES module and CommonJS builds with TypeScript declarations, and standalone CDN bundles
   (`streamit-player.esm.min.js` and the `window.StreamitPlayer` IIFE build).
 
-[Unreleased]: https://github.com/iqonicdesignofficial/streamit-player/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/iqonicdesignofficial/streamit-player/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/iqonicdesignofficial/streamit-player/releases/tag/v1.0.1
 [1.0.0]: https://github.com/iqonicdesignofficial/streamit-player/releases/tag/v1.0.0
