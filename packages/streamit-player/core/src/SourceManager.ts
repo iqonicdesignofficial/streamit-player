@@ -1191,7 +1191,7 @@ export class HlsHandler implements SourceHandler {
     if (this.hls) {
       this.isAutoMode = index === 0;
       const levelIndex = index - 1;
-      this.hls.currentLevel = levelIndex;
+      this.hls.nextLevel = levelIndex;
       if (levelIndex === -1) {
         this.lastLevelIndex = -1;
       } else {
@@ -2246,7 +2246,7 @@ export class DashHandler implements SourceHandler {
           if (playerWithABR.setRepresentationForTypeById) {
             playerWithABR.setRepresentationForTypeById('video', targetRep.id);
           } else if (playerWithABR.setQualityFor) {
-            playerWithABR.setQualityFor('video', levelIndex, true);
+            playerWithABR.setQualityFor('video', levelIndex, false);
           }
           this.lastQualityIndex = levelIndex;
         }
