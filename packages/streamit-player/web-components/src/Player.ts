@@ -123,6 +123,57 @@ type StaticCustomSettingsItem = {
   onClick?: (player: unknown) => void;
 };
 
+/**
+ * Frameworks that hand values to a custom element as attributes rather than as
+ * properties lowercase the name they were given: a React 18 `displayMode`
+ * prop reaches the DOM as `displaymode`, which no kebab-cased observed
+ * attribute matches. The value was then dropped in silence, so a player told to
+ * be vertical stayed standard. Every hyphenated attribute therefore also
+ * answers to its squashed and snake_cased spellings.
+ */
+function buildAttributeAliases(canonical: readonly string[]): Map<string, string> {
+  const aliases = new Map<string, string>();
+  for (const name of canonical) {
+    if (!name.includes('-')) continue;
+    for (const alias of [name.replace(/-/g, ''), name.replace(/-/g, '_')]) {
+      if (alias !== name && !canonical.includes(alias)) {
+        aliases.set(alias, name);
+      }
+    }
+  }
+  return aliases;
+}
+
+/**
+ * `config` only survives as an attribute when it is a JSON string. A framework
+ * that assigns an object to an attribute stringifies it to "[object Object]",
+ * which would otherwise be swallowed and leave the whole configuration
+ * silently missing.
+ */
+function parseConfigAttribute(value: string | null): PlayerConfiguration | undefined {
+  if (value === null) return undefined;
+  const trimmed = value.trim();
+  if (trimmed === '') return undefined;
+  if (trimmed.startsWith('[object ')) {
+    console.warn(
+      '[streamit-player] The "config" attribute received a stringified object ' +
+        `("${trimmed}") and has been ignored. Pass config as a DOM property ` +
+        '(element.config = {...}, or .config=${...} / :config="..." in a ' +
+        'framework template) rather than as an attribute.'
+    );
+    return undefined;
+  }
+  try {
+    return JSON.parse(trimmed) as PlayerConfiguration;
+  } catch {
+    console.warn(
+      '[streamit-player] The "config" attribute is not valid JSON and has been ' +
+        'ignored. Pass config as a DOM property instead.'
+    );
+    return undefined;
+  }
+}
+
 export class PlayerPlayer extends LitElement {
   @property({ type: String, reflect: true }) src = '';
   @property({ type: String, reflect: true }) captions = '';
@@ -141,7 +192,11 @@ export class PlayerPlayer extends LitElement {
   @property({ type: String, attribute: 'live-mode', reflect: true }) liveMode:
     | 'live-only'
     | 'live-dvr' = 'live-dvr';
-  @property({ type: Object }) config?: PlayerConfiguration;
+  @property({
+    type: Object,
+    converter: { fromAttribute: parseConfigAttribute },
+  })
+  config?: PlayerConfiguration;
   @property({ type: Boolean, attribute: 'precise-seek', reflect: true }) preciseSeekEnabled?: boolean;
   @property({ type: Boolean, attribute: 'smart-seek', reflect: true }) smartSeekEnabled?: boolean;
   @property({ type: String, reflect: true }) preload: 'none' | 'metadata' | 'auto' = 'metadata';
@@ -459,6 +514,34 @@ export class PlayerPlayer extends LitElement {
   }> = [];
 
   static styles = styles;
+
+  /** The mode `config` last asked for - see adoptDisplayModeFromConfig. */
+  private configRequestedMode?: PlayerPlayer['displayMode'];
+
+  private static attributeAliases?: Map<string, string>;
+
+  static get observedAttributes(): string[] {
+    const canonical = super.observedAttributes;
+    // Own-property, not inherited: a subclass (the player-player alias element,
+    // or a consumer's) may observe attributes this class never declared.
+    if (!Object.prototype.hasOwnProperty.call(this, 'attributeAliases')) {
+      this.attributeAliases = buildAttributeAliases(canonical);
+    }
+    return [...canonical, ...(this.attributeAliases as Map<string, string>).keys()];
+  }
+
+  attributeChangedCallback(name: string, old: string | null, value: string | null) {
+    const canonical = (this.constructor as typeof PlayerPlayer).attributeAliases?.get(name);
+    if (canonical) {
+      if (value === null) {
+        this.removeAttribute(canonical);
+      } else if (this.getAttribute(canonical) !== value) {
+        this.setAttribute(canonical, value);
+      }
+      return;
+    }
+    super.attributeChangedCallback(name, old, value);
+  }
 
   public get controllerInstance(): PlayerController {
     return this.controller;
@@ -824,6 +907,29 @@ export class PlayerPlayer extends LitElement {
   willUpdate(changedProperties: PropertyValues) {
     if (changedProperties.has('liveMode') && this.controller) {
       this.controller.setLiveMode(this.liveMode);
+    }
+    this.adoptDisplayModeFromConfig(changedProperties);
+  }
+
+  /**
+   * `displayMode` is the single source of truth for the layout: the host
+   * stylesheet keys off the attribute it reflects and render() picks the
+   * control set from it. `config.displayMode` and `config.layout.mode` are
+   * equivalent ways to ask for a mode, so they are folded into the property
+   * here - before the first render - rather than being read separately further
+   * down, which is how a 9:16 host could end up wearing the standard control
+   * bar.
+   *
+   * Only a config that changes the mode it asks for wins, so an unrelated
+   * config update never clobbers a display-mode set on the element itself.
+   */
+  private adoptDisplayModeFromConfig(changedProperties: PropertyValues) {
+    if (!changedProperties.has('config')) return;
+    const requested = this.config?.displayMode || this.config?.layout?.mode;
+    if (!requested || requested === this.configRequestedMode) return;
+    this.configRequestedMode = requested;
+    if (this.displayMode !== requested) {
+      this.displayMode = requested;
     }
   }
 
@@ -4055,7 +4161,7 @@ export class PlayerPlayer extends LitElement {
   }
 
   private renderDefaultLiveOverlay(player: PlayerPlayer) {
-    const layoutMode = player.config?.layout?.mode || player.displayMode;
+    const layoutMode = player.displayMode;
     if (layoutMode !== 'vertical' || !player.playerState.isLive) return '';
     return html`
       <div
@@ -4451,7 +4557,7 @@ export class PlayerPlayer extends LitElement {
     } = this.playerState;
 
     const isVisible = this.controlsVisible || !isPlaying;
-    const layoutMode = this.config?.layout?.mode || this.displayMode;
+    const layoutMode = this.displayMode;
 
     return html`
       <div
