@@ -1,6 +1,6 @@
 {
   "name": "streamit-player",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Enterprise-grade HTML5 video player with adaptive streaming (HLS/DASH), multi-DRM, VAST/VMAP/SIMID advertising, and Lit web components.",
   "license": "Apache-2.0",
   "author": "Iqonic Design",

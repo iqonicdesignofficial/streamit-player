@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [released]
+## [1.0.3] - 2026-09-22
+
+### Fixed
+
+- **Vertical player mode now works correctly when installed in React/Next projects.** The component now recognizes lowercased attribute spellings (`displaymode`, `display_mode`, `livemode`, `autoscroll`, etc.) that frameworks emit when converting JSX props to DOM attributes. This unblocks the action rail, vertical seekbar, swipe-to-navigate gestures, and all vertical-specific UI that was silently failing to activate.
+- **Config objects passed as JSX props are now handled gracefully.** When a framework stringifies an object attribute to `[object Object]`, the player now rejects it with a clear console warning instead of silently dropping the entire configuration. Valid JSON config attributes are still accepted.
+- **Vertical layout is now reliably rendered.** The host stylesheet's 9:16 aspect ratio, action rail positioning, and control-set selection now all read from a single source of truth (`displayMode`), preventing race conditions where the aspect ratio applied but standard controls rendered anyway.
+
+### Testing
+
+- Fixed jsdom `localStorage` availability in Node 25+ environments, unblocking execution of the vertical-feed gesture test suite (swipe navigation, double-tap seek, long-press speed, canvas double-buffer transitions). All 313 tests now pass.
 
 ## [1.0.2] - 2026-09-12
 
@@ -40,6 +50,8 @@ Initial public release of `streamit-player`.
 - ES module and CommonJS builds with TypeScript declarations, and standalone CDN bundles
   (`streamit-player.esm.min.js` and the `window.StreamitPlayer` IIFE build).
 
-[Unreleased]: https://github.com/iqonicdesignofficial/streamit-player/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/iqonicdesignofficial/streamit-player/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/iqonicdesignofficial/streamit-player/compare/v1.0.2...v1.0.3
+[1.0.2]: https://github.com/iqonicdesignofficial/streamit-player/compare/v1.0.0...v1.0.2
 [1.0.1]: https://github.com/iqonicdesignofficial/streamit-player/releases/tag/v1.0.1
 [1.0.0]: https://github.com/iqonicdesignofficial/streamit-player/releases/tag/v1.0.0
