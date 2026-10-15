@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The player UI did not re-render when Picture-in-Picture started or ended, so the PiP button state could lag behind.
 - The precise-seek filmstrip could leave cells stuck on the loading shimmer: its 11 requests exceeded the provider's queue of 9, so 2 were dropped and never retried. The queue now covers a full window, requests go nearest-the-playhead first, and failed cells retry after 1.5s.
 
+## [1.1.0] - 2026-10-15
+
+### Added
+
+- **Thumbnail Provider warmUp method** - New `warmUp()` method on `ThumbnailProvider` interface enables preloading and caching of thumbnail data before seeking, improving scrubbing performance and reducing seek latency. Smart Seek filmstrip and vertical-mode previews now benefit from automatic preloading.
+- **Brightness swipe gesture** - Vertical swipe on the right half of the video now adjusts brightness (in addition to volume on the left half), with a live HUD indicator showing the brightness percentage. Customizable via `config.gestures.brightnessControl`.
+- **Picture-in-Picture placeholder** - When PiP is active but the player is minimized, a styled placeholder badge displays the video title and current time, keeping viewers informed without obscuring content.
+
 ## [1.0.3] - 2026-09-22
 
 ### Fixed
@@ -70,7 +78,8 @@ Initial public release of `streamit-player`.
 - ES module and CommonJS builds with TypeScript declarations, and standalone CDN bundles
   (`streamit-player.esm.min.js` and the `window.StreamitPlayer` IIFE build).
 
-[Unreleased]: https://github.com/iqonicdesignofficial/streamit-player/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/iqonicdesignofficial/streamit-player/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/iqonicdesignofficial/streamit-player/compare/v1.0.3...v1.1.0
 [1.0.3]: https://github.com/iqonicdesignofficial/streamit-player/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/iqonicdesignofficial/streamit-player/compare/v1.0.0...v1.0.2
 [1.0.1]: https://github.com/iqonicdesignofficial/streamit-player/releases/tag/v1.0.1
