@@ -59,6 +59,12 @@ export interface ThumbnailProvider {
   setSource?(src: string, sourceOptions?: PlayerSource): void;
   destroy?(): void;
   isUnavailable?(): boolean;
+  /**
+   * Optionally starts loading what the provider needs (e.g. the hidden video's
+   * metadata) ahead of the first request, so the first hover is not cold.
+   * Cheap and idempotent; callers skip it on constrained networks.
+   */
+  warmUp?(): void;
 }
 
 export interface OverlayOptions {

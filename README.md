@@ -197,7 +197,7 @@ Four interchangeable thumbnail providers, auto-selected based on what's configur
 
 | Provider | Source | How it works |
 |---|---|---|
-| **Frame Capture** | Any playable source | A hidden, muted, off-screen video seeks to the target time and the frame is captured to canvas/JPEG on the fly - works without any pre-generated thumbnail asset |
+| **Frame Capture** | Any playable source | A hidden, muted, off-screen video seeks to the target time and the frame is captured to canvas/JPEG on the fly - works without any pre-generated thumbnail asset. Kept light: hover frames snap to a 1-10s grid and are reused from an LRU cache (400 frames), the hidden video only loads metadata and a few seconds of data (hls.js/dash.js buffers are capped), the black-frame check reads a tiny downscale, and the first hover is pre-warmed shortly after playback starts (skipped for live streams and when Save-Data/2G is on) |
 | **VTT (WebVTT cue sheet)** | `vttUrl` | Standard thumbnail-track format, supports sprite-region fragments (`#xywh=`) |
 | **Sprite sheet** | `spriteUrl` + tile layout | Fixed-interval sprite-sheet lookup by tile position |
 | **Auto** | Whatever's configured | Picks the best strategy automatically |

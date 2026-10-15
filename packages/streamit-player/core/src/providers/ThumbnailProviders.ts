@@ -30,7 +30,7 @@ interface HlsInstance {
   loadLevel: number;
 }
 interface HlsStatic {
-  new (config: { enableWorker: boolean; lowLatencyMode: boolean }): HlsInstance;
+  new (config: Record<string, unknown>): HlsInstance;
   isSupported(): boolean;
   Events: {
     MEDIA_ATTACHED: string;
@@ -82,6 +82,53 @@ function isSecurityError(err: unknown): boolean {
   return false;
 }
 
+interface NetworkInformationLike {
+  saveData?: boolean;
+  effectiveType?: string;
+}
+
+/**
+ * True when the user asked the browser to save data, or the connection is
+ * 2G-class. Background work that only improves smoothness (thumbnail
+ * warm-up, playlist-neighbour frame preloading) is skipped in that case.
+ */
+export function isConstrainedNetwork(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const connection = (navigator as Navigator & { connection?: NetworkInformationLike }).connection;
+  if (!connection) return false;
+  return (
+    connection.saveData === true ||
+    connection.effectiveType === 'slow-2g' ||
+    connection.effectiveType === '2g'
+  );
+}
+
+/** Target number of distinct hover frames across a whole timeline. */
+const HOVER_GRID_TARGET_FRAMES = 360;
+const HOVER_GRID_MIN_STEP = 1;
+const HOVER_GRID_MAX_STEP = 10;
+
+/**
+ * Seconds between captured hover frames. Snapping requests to this grid means
+ * sweeping the pointer across the seekbar reuses a bounded set of frames
+ * instead of decoding a new one for every 0.1s. Precise-seek always uses 1s
+ * (its filmstrip shows one cell per second).
+ */
+export function getThumbnailGridStep(duration: number, isPreciseSeeking: boolean): number {
+  if (isPreciseSeeking || !Number.isFinite(duration) || duration <= 0) {
+    return HOVER_GRID_MIN_STEP;
+  }
+  return Math.max(
+    HOVER_GRID_MIN_STEP,
+    Math.min(HOVER_GRID_MAX_STEP, Math.round(duration / HOVER_GRID_TARGET_FRAMES))
+  );
+}
+
+export function snapToThumbnailGrid(time: number, step: number): number {
+  if (step <= 1) return Math.round(time);
+  return Math.round(time / step) * step;
+}
+
 export class VideoFrameThumbnailProvider implements ThumbnailProvider {
   readonly type = 'frame-capture';
   private video: HTMLVideoElement | null = null;
@@ -109,9 +156,15 @@ export class VideoFrameThumbnailProvider implements ThumbnailProvider {
   private lastSeekTime = 0;
   private lastHighPriorityTime = 0;
   private throttleMs = 150;
+  /** Precise-seek scrubbing wants frames as fast as the decoder can produce them. */
+  private readonly PRECISE_THROTTLE_MS = 30;
   private seekTimeoutId: ReturnType<typeof setTimeout> | null = null;
-  private readonly MAX_CACHE_SIZE = 250;
+  private readonly MAX_CACHE_SIZE = 400;
+  /** Covers a full filmstrip window (11 cells) plus the previous, now stale, one. */
+  private readonly MAX_LOW_PRIORITY_QUEUE = 24;
   public isPreciseSeeking = false;
+  private blankProbeCanvas: HTMLCanvasElement | null = null;
+  private blankProbeCtx: CanvasRenderingContext2D | null = null;
   private activeSeekCleanup: (() => void) | null = null;
   private pendingRequests = new Map<number, Promise<ThumbnailInfo | null>>();
   private config?: SmartSeekConfig;
@@ -165,7 +218,9 @@ export class VideoFrameThumbnailProvider implements ThumbnailProvider {
     this.video.muted = true;
     this.video.playsInline = true;
     this.video.crossOrigin = 'anonymous';
-    this.video.preload = 'auto';
+    // 'metadata': this video never plays, so it must not buffer ahead. Seeking
+    // still fetches exactly the data needed for the requested frame.
+    this.video.preload = 'metadata';
     this.video.style.cssText =
       'position:fixed;width:320px;height:180px;pointer-events:none;opacity:0.001;z-index:-1000;top:0;left:0;';
     document.body.appendChild(this.video);
@@ -176,7 +231,9 @@ export class VideoFrameThumbnailProvider implements ThumbnailProvider {
     this.canvas = document.createElement('canvas');
     this.canvas.width = 320;
     this.canvas.height = 180;
-    this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
+    // GPU-backed: pixels are only read back once, by the JPEG encode. The black
+    // frame check reads a tiny downscaled copy instead (see isCanvasBlank).
+    this.ctx = this.canvas.getContext('2d');
   }
 
   public setSource(src: string) {
@@ -252,9 +309,18 @@ export class VideoFrameThumbnailProvider implements ThumbnailProvider {
             if (this.currentSrc !== src || !this.video) return;
             const HlsClass = HlsLib as HlsStatic;
             if (HlsClass.isSupported()) {
+              // This instance only feeds a hidden, never-played video: keep its
+              // buffers to a few seconds so it doesn't compete with the real
+              // player for bandwidth, and pin the cheapest rendition.
               const hls = new HlsClass({
                 enableWorker: true,
-                lowLatencyMode: true,
+                lowLatencyMode: false,
+                startLevel: 0,
+                capLevelToPlayerSize: true,
+                maxBufferLength: 4,
+                maxMaxBufferLength: 8,
+                maxBufferSize: 8 * 1000 * 1000,
+                backBufferLength: 8,
               });
               this.hlsInstance = hls;
               hls.attachMedia(this.video);
@@ -300,6 +366,15 @@ export class VideoFrameThumbnailProvider implements ThumbnailProvider {
               streaming: {
                 abr: {
                   autoSwitchBitrate: { video: false },
+                },
+                // Hidden, never-played video: keep only a few seconds buffered.
+                buffer: {
+                  fastSwitchEnabled: false,
+                  bufferTimeDefault: 4,
+                  bufferTimeAtTopQuality: 4,
+                  bufferTimeAtTopQualityLongForm: 4,
+                  stableBufferTime: 4,
+                  bufferToKeep: 8,
                 },
               },
             });
@@ -463,7 +538,9 @@ export class VideoFrameThumbnailProvider implements ThumbnailProvider {
       return null;
     }
 
-    const bucket = Math.round(time * 10) / 10;
+    const gridStep = this.getGridStep();
+    time = snapToThumbnailGrid(time, gridStep);
+    const bucket = time;
 
     const existingPromise = this.pendingRequests.get(bucket);
     if (existingPromise) {
@@ -471,7 +548,7 @@ export class VideoFrameThumbnailProvider implements ThumbnailProvider {
     }
 
     if (this.config?.cache !== false) {
-      const cached = this.cache.get(bucket);
+      const cached = this.getCached(bucket);
       if (cached) {
         return cached;
       }
@@ -480,7 +557,7 @@ export class VideoFrameThumbnailProvider implements ThumbnailProvider {
     const nearest = this.getNearestCachedThumbnail(time);
     if (nearest && nearest.time !== undefined) {
       const distance = Math.abs(nearest.time - time);
-      if (distance <= 0.2) {
+      if (distance <= Math.max(0.2, gridStep / 2)) {
         return nearest;
       }
     }
@@ -495,8 +572,7 @@ export class VideoFrameThumbnailProvider implements ThumbnailProvider {
         if (samePriorityIndex !== -1) {
           const removed = this.seekQueue.splice(samePriorityIndex, 1)[0];
           removed.resolve(null);
-          const removedBucket = Math.round(removed.time * 10) / 10;
-          this.pendingRequests.delete(removedBucket);
+          this.pendingRequests.delete(removed.time);
         }
       }
 
@@ -521,16 +597,17 @@ export class VideoFrameThumbnailProvider implements ThumbnailProvider {
           }
         });
 
-        if (lowPriorityIndices.length > 9) {
-          const toRemoveCount = lowPriorityIndices.length - 9;
+        // Drop the oldest requests first: they belong to a window the user
+        // has already scrubbed past.
+        if (lowPriorityIndices.length > this.MAX_LOW_PRIORITY_QUEUE) {
+          const toRemoveCount = lowPriorityIndices.length - this.MAX_LOW_PRIORITY_QUEUE;
           const indicesToRemove = new Set(lowPriorityIndices.slice(0, toRemoveCount));
 
           const newQueue: typeof this.seekQueue = [];
           this.seekQueue.forEach((t, idx) => {
             if (indicesToRemove.has(idx)) {
               t.resolve(null);
-              const removedBucket = Math.round(t.time * 10) / 10;
-              this.pendingRequests.delete(removedBucket);
+              this.pendingRequests.delete(t.time);
             } else {
               newQueue.push(t);
             }
@@ -546,21 +623,63 @@ export class VideoFrameThumbnailProvider implements ThumbnailProvider {
     return promise;
   }
 
+  private getGridStep(): number {
+    return getThumbnailGridStep(this.video?.duration ?? NaN, this.isPreciseSeeking);
+  }
+
+  /** LRU read: a hit becomes the most recently used entry. */
+  private getCached(bucket: number): ThumbnailInfo | undefined {
+    const hit = this.cache.get(bucket);
+    if (hit) {
+      this.cache.delete(bucket);
+      this.cache.set(bucket, hit);
+    }
+    return hit;
+  }
+
+  /** Inserts as most recently used, evicting the least recently used entries beyond the limit. */
+  private storeInCache(bucket: number, thumb: ThumbnailInfo) {
+    if (this.config?.cache === false) return;
+    this.cache.delete(bucket);
+    while (this.cache.size >= this.MAX_CACHE_SIZE) {
+      const oldest = this.cache.keys().next().value;
+      if (oldest === undefined) break;
+      this.cache.delete(oldest);
+    }
+    this.cache.set(bucket, thumb);
+  }
+
+  /**
+   * Starts loading the hidden video's metadata ahead of the first request so
+   * the first hover is not cold. Cheap and idempotent.
+   */
+  public warmUp(): void {
+    if (this.isDestroyed || this.hasError || !this.pendingSrc) return;
+    if (this.currentSrc !== this.pendingSrc) {
+      this.loadPendingSource();
+    }
+  }
+
+  private scheduleQueue(delay: number) {
+    if (this.seekTimeoutId !== null) {
+      clearTimeout(this.seekTimeoutId);
+    }
+    this.seekTimeoutId = setTimeout(() => {
+      this.seekTimeoutId = null;
+      this.processQueue();
+    }, delay);
+  }
+
   private async processQueue() {
     if (this.isSeeking || this.seekQueue.length === 0 || !this.video) {
       return;
     }
 
     const now = Date.now();
+    const throttle = this.isPreciseSeeking ? this.PRECISE_THROTTLE_MS : this.throttleMs;
     const timeSinceLastSeek = now - this.lastSeekTime;
-    if (timeSinceLastSeek < this.throttleMs) {
-      if (this.seekTimeoutId !== null) {
-        clearTimeout(this.seekTimeoutId);
-      }
-      this.seekTimeoutId = setTimeout(() => {
-        this.seekTimeoutId = null;
-        this.processQueue();
-      }, this.throttleMs - timeSinceLastSeek);
+    if (timeSinceLastSeek < throttle) {
+      this.scheduleQueue(throttle - timeSinceLastSeek);
       return;
     }
 
@@ -573,14 +692,7 @@ export class VideoFrameThumbnailProvider implements ThumbnailProvider {
     const hasHighPriorityTask = this.seekQueue.some((t) => t.priority === 'high');
 
     if (isUserActive && !hasHighPriorityTask && !this.isPreciseSeeking) {
-      const delay = 2000 - (now - this.lastHighPriorityTime);
-      if (this.seekTimeoutId !== null) {
-        clearTimeout(this.seekTimeoutId);
-      }
-      this.seekTimeoutId = setTimeout(() => {
-        this.seekTimeoutId = null;
-        this.processQueue();
-      }, delay);
+      this.scheduleQueue(2000 - (now - this.lastHighPriorityTime));
       return;
     }
 
@@ -593,14 +705,13 @@ export class VideoFrameThumbnailProvider implements ThumbnailProvider {
     this.isSeeking = true;
     const task = this.seekQueue.splice(taskIndex, 1)[0];
     let seekTarget = task.time;
-    if (this.video && this.video.seekable && this.video.seekable.length > 0) {
+    if (this.video.seekable && this.video.seekable.length > 0) {
       const start = this.video.seekable.start(0);
       const end = this.video.seekable.end(this.video.seekable.length - 1);
       seekTarget = Math.max(start, Math.min(seekTarget, end));
     }
-    const bucket = Math.round(seekTarget * 10) / 10;
 
-    const cached = this.config?.cache !== false ? this.cache.get(bucket) : null;
+    const cached = this.config?.cache !== false ? this.getCached(task.time) : null;
     if (cached) {
       this.isSeeking = false;
       task.resolve(cached);
@@ -614,56 +725,18 @@ export class VideoFrameThumbnailProvider implements ThumbnailProvider {
       }
     }
 
-    if (this.hasError) {
+    // The provider may have been destroyed (or its source swapped) while waiting.
+    if (this.hasError || this.isDestroyed || !this.video) {
       task.resolve(null);
       this.isSeeking = false;
       this.processQueue();
       return;
     }
+    const video = this.video;
 
-    const isAlreadyAtTime = Math.abs(this.video.currentTime - seekTarget) < 0.01;
-    if (isAlreadyAtTime && this.video.readyState >= 2) {
-      try {
-        let thumb = null;
-        let retries = 0;
-        const maxRetries = 3;
-        while (retries <= maxRetries) {
-          thumb = this.captureFrame(bucket);
-          if (thumb && !this.isCanvasBlank()) {
-            break;
-          }
-          if (retries < maxRetries) {
-            retries++;
-            await new Promise((resolve) => setTimeout(resolve, 40));
-          } else {
-            break;
-          }
-        }
-
-        if (thumb) {
-          if (this.config?.cache !== false) {
-            if (this.cache.size >= this.MAX_CACHE_SIZE) {
-              const firstKey = this.cache.keys().next().value;
-              if (firstKey !== undefined) this.cache.delete(firstKey);
-            }
-            this.cache.set(bucket, thumb);
-          }
-          this.consecutiveFailures = 0;
-          task.resolve(thumb);
-        } else {
-          this.handleFailure(task);
-        }
-      } catch (err) {
-        if (isSecurityError(err)) {
-          console.debug(
-            '[VideoFrameThumbnailProvider] CORS security error. Disabling seeks for this source immediately.'
-          );
-          this.hasError = true;
-          task.resolve(null);
-        } else {
-          this.handleFailure(task);
-        }
-      }
+    const isAlreadyAtTime = Math.abs(video.currentTime - seekTarget) < 0.01;
+    if (isAlreadyAtTime && video.readyState >= 2) {
+      await this.resolveTaskFromVideo(task, seekTarget);
       this.isSeeking = false;
       this.processQueue();
       return;
@@ -671,64 +744,18 @@ export class VideoFrameThumbnailProvider implements ThumbnailProvider {
 
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-    const onSeeked = async () => {
-      if (this.video && this.video.readyState < 2) {
+    const finish = async () => {
+      await this.resolveTaskFromVideo(task, seekTarget);
+      this.isSeeking = false;
+      this.processQueue();
+    };
+
+    const onSeeked = () => {
+      if (video.readyState < 2) {
         return;
       }
       cleanup();
-      try {
-        if (this.video && this.video.readyState >= 2) {
-          let thumb = null;
-          let retries = 0;
-          const maxRetries = 3;
-
-          while (retries <= maxRetries) {
-            thumb = this.captureFrame(bucket);
-            if (thumb && !this.isCanvasBlank()) {
-              break;
-            }
-            if (retries < maxRetries) {
-              retries++;
-              await new Promise((resolve) => setTimeout(resolve, 40));
-            } else {
-              break;
-            }
-          }
-
-          if (thumb) {
-            if (this.config?.cache !== false) {
-              if (this.cache.size >= this.MAX_CACHE_SIZE) {
-                const firstKey = this.cache.keys().next().value;
-                if (firstKey !== undefined) this.cache.delete(firstKey);
-              }
-              this.cache.set(bucket, thumb);
-            }
-            this.consecutiveFailures = 0;
-            task.resolve(thumb);
-          } else {
-            this.handleFailure(task);
-          }
-        } else {
-          console.warn('[VideoFrameThumbnailProvider] seeked fired but video readyState < 2.');
-          this.handleFailure(task);
-        }
-      } catch (err) {
-        console.debug(
-          '[VideoFrameThumbnailProvider] Canvas snapshot capture failed (CORS/tainted canvas or exception):',
-          err
-        );
-        if (isSecurityError(err)) {
-          console.debug(
-            '[VideoFrameThumbnailProvider] CORS security error. Disabling seeks for this source immediately.'
-          );
-          this.hasError = true;
-          task.resolve(null);
-        } else {
-          this.handleFailure(task);
-        }
-      }
-      this.isSeeking = false;
-      this.processQueue();
+      void finish();
     };
 
     const onError = (e: Event) => {
@@ -740,12 +767,10 @@ export class VideoFrameThumbnailProvider implements ThumbnailProvider {
     };
 
     const cleanup = () => {
-      if (this.video) {
-        this.video.removeEventListener('seeked', onSeeked);
-        this.video.removeEventListener('loadeddata', onSeeked);
-        this.video.removeEventListener('canplay', onSeeked);
-        this.video.removeEventListener('error', onError);
-      }
+      video.removeEventListener('seeked', onSeeked);
+      video.removeEventListener('loadeddata', onSeeked);
+      video.removeEventListener('canplay', onSeeked);
+      video.removeEventListener('error', onError);
       if (timeoutId !== null) {
         clearTimeout(timeoutId);
         timeoutId = null;
@@ -755,68 +780,68 @@ export class VideoFrameThumbnailProvider implements ThumbnailProvider {
 
     this.activeSeekCleanup = cleanup;
 
-    this.video.addEventListener('seeked', onSeeked);
-    this.video.addEventListener('loadeddata', onSeeked);
-    this.video.addEventListener('canplay', onSeeked);
-    this.video.addEventListener('error', onError);
+    video.addEventListener('seeked', onSeeked);
+    video.addEventListener('loadeddata', onSeeked);
+    video.addEventListener('canplay', onSeeked);
+    video.addEventListener('error', onError);
 
-    timeoutId = setTimeout(async () => {
+    timeoutId = setTimeout(() => {
       console.warn(
         `[VideoFrameThumbnailProvider] Seek timeout reached for time ${seekTarget}s. Recovering...`
       );
       cleanup();
-      try {
-        if (this.video && this.video.readyState >= 2) {
-          let thumb = null;
-          let retries = 0;
-          const maxRetries = 3;
-
-          while (retries <= maxRetries) {
-            thumb = this.captureFrame(bucket);
-            if (thumb && !this.isCanvasBlank()) {
-              break;
-            }
-            if (retries < maxRetries) {
-              retries++;
-              await new Promise((resolve) => setTimeout(resolve, 40));
-            } else {
-              break;
-            }
-          }
-
-          if (thumb) {
-            if (this.cache.size >= this.MAX_CACHE_SIZE) {
-              const firstKey = this.cache.keys().next().value;
-              if (firstKey !== undefined) this.cache.delete(firstKey);
-            }
-            this.cache.set(bucket, thumb);
-            this.consecutiveFailures = 0;
-            task.resolve(thumb);
-          } else {
-            this.handleFailure(task);
-          }
-        } else {
-          this.handleFailure(task);
-        }
-      } catch (e) {
-        if (isSecurityError(e)) {
-          console.debug(
-            '[VideoFrameThumbnailProvider] CORS security error on seek timeout. Disabling seeks for this source immediately.'
-          );
-          this.hasError = true;
-          task.resolve(null);
-        } else {
-          this.handleFailure(task);
-        }
-      }
-      this.isSeeking = false;
-      this.processQueue();
+      void finish();
     }, 2000);
 
     if (this.hlsInstance) {
       this.hlsInstance.startLoad();
     }
-    this.video.currentTime = seekTarget;
+    video.currentTime = seekTarget;
+  }
+
+  /** Captures, caches and resolves `task` from the frame the hidden video currently shows. */
+  private async resolveTaskFromVideo(
+    task: { time: number; resolve: (val: ThumbnailInfo | null) => void },
+    seekTarget: number
+  ): Promise<void> {
+    try {
+      const thumb =
+        this.video && this.video.readyState >= 2
+          ? await this.captureWithRetry(Math.round(seekTarget * 10) / 10)
+          : null;
+      if (thumb) {
+        this.storeInCache(task.time, thumb);
+        this.consecutiveFailures = 0;
+        task.resolve(thumb);
+      } else {
+        this.handleFailure(task);
+      }
+    } catch (err) {
+      if (isSecurityError(err)) {
+        console.debug(
+          '[VideoFrameThumbnailProvider] CORS security error. Disabling seeks for this source immediately.'
+        );
+        this.hasError = true;
+        task.resolve(null);
+      } else {
+        console.debug('[VideoFrameThumbnailProvider] Canvas snapshot capture failed:', err);
+        this.handleFailure(task);
+      }
+    }
+  }
+
+  /** Browsers can briefly expose a blank/stale frame right after `seeked`; retry a couple of times. */
+  private async captureWithRetry(time: number): Promise<ThumbnailInfo | null> {
+    const maxRetries = 2;
+    let thumb: ThumbnailInfo | null = null;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      thumb = this.captureFrame(time);
+      if (thumb && !this.isCanvasBlank()) break;
+      if (attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 40));
+      }
+    }
+    return thumb;
   }
 
   private handleFailure(task: { resolve: (val: ThumbnailInfo | null) => void }) {
@@ -850,31 +875,40 @@ export class VideoFrameThumbnailProvider implements ThumbnailProvider {
     }
 
     this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
-    const dataUrl = this.canvas.toDataURL('image/jpeg', 0.8);
+    const dataUrl = this.canvas.toDataURL('image/jpeg', 0.75);
     return { url: dataUrl, width: this.canvas.width, height: this.canvas.height, time };
   }
 
+  /**
+   * True if the captured frame is (almost) entirely black. Reads a 16x9
+   * downscale of the capture canvas instead of the full frame, so the check
+   * costs a few hundred bytes of readback rather than ~230 KB per capture.
+   */
   private isCanvasBlank(): boolean {
-    if (!this.canvas || !this.ctx) return true;
-    const w = this.canvas.width;
-    const h = this.canvas.height;
+    if (!this.canvas) return true;
+    const PROBE_W = 16;
+    const PROBE_H = 9;
     try {
-      const imgData = this.ctx.getImageData(0, 0, w, h);
-      const data = imgData.data;
+      if (!this.blankProbeCanvas) {
+        this.blankProbeCanvas = document.createElement('canvas');
+        this.blankProbeCanvas.width = PROBE_W;
+        this.blankProbeCanvas.height = PROBE_H;
+        this.blankProbeCtx = this.blankProbeCanvas.getContext('2d', {
+          willReadFrequently: true,
+        });
+      }
+      const ctx = this.blankProbeCtx;
+      if (!ctx) return false;
+      ctx.drawImage(this.canvas, 0, 0, PROBE_W, PROBE_H);
+      const data = ctx.getImageData(0, 0, PROBE_W, PROBE_H).data;
 
       let nonBlackCount = 0;
-      for (let i = 0; i < data.length; i += 16) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-        const a = data[i + 3];
-        if (a > 10 && (r > 8 || g > 8 || b > 8)) {
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] > 10 && (data[i] > 8 || data[i + 1] > 8 || data[i + 2] > 8)) {
           nonBlackCount++;
         }
       }
-
-      const totalSamples = data.length / 16;
-      return nonBlackCount / totalSamples < 0.01;
+      return nonBlackCount / (data.length / 4) < 0.02;
     } catch (e) {
       return false;
     }
@@ -911,6 +945,8 @@ export class VideoFrameThumbnailProvider implements ThumbnailProvider {
     }
     this.canvas = null;
     this.ctx = null;
+    this.blankProbeCanvas = null;
+    this.blankProbeCtx = null;
   }
 }
 
@@ -1331,6 +1367,12 @@ export class AutoThumbnailProvider implements ThumbnailProvider {
       return this.currentProvider.getThumbnail(time, priority);
     }
     return null;
+  }
+
+  public warmUp(): void {
+    if (this.currentProvider && typeof this.currentProvider.warmUp === 'function') {
+      this.currentProvider.warmUp();
+    }
   }
 
   public isUnavailable(): boolean {

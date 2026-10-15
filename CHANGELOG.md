@@ -13,9 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Landscape fullscreen on phones.** Entering fullscreen with a landscape video rotates touch devices to landscape and releases the lock on exit. Vertical mode and portrait videos are left alone. Opt out with `layout.lockLandscapeOnFullscreen: false`.
 - **Picture-in-Picture placeholder.** While in PiP the player area shows a centered PiP icon and "Playing in Picture-in-Picture" (over the dimmed poster, if one is set) instead of Chrome's plain built-in text. Themeable via CSS variables, parts and the `icon-pip-placeholder` slot.
 
+### Changed
+
+- **Smart Seek / Precise Seek frame capture is much lighter.** Hover thumbnails snap to a 1-10s time grid (1s in precise-seek mode) and are served from an LRU cache of 400 frames, so scrubbing reuses frames instead of decoding a new one every 0.1s. The hidden capture video now loads only metadata (`preload="metadata"`) and its hls.js/dash.js instances buffer just a few seconds, so it no longer competes with the real player for bandwidth. The black-frame check reads a 16x9 downscale instead of the whole frame, capture uses a GPU-backed canvas, and three duplicated capture paths were merged into one.
+- The first seekbar hover is pre-warmed: shortly after playback starts the hidden video loads its metadata (not for live streams, and not when Save-Data or a 2G connection is detected).
+- Playlist neighbours now preload only their first frame plus at most 3 chapter frames (previously about 10 interval frames each), and not at all when Save-Data or 2G is detected.
+- New optional `ThumbnailProvider.warmUp()` and exported `isConstrainedNetwork()` helper.
+
 ### Fixed
 
 - The player UI did not re-render when Picture-in-Picture started or ended, so the PiP button state could lag behind.
+- The precise-seek filmstrip could leave cells stuck on the loading shimmer: its 11 requests exceeded the provider's queue of 9, so 2 were dropped and never retried. The queue now covers a full window, requests go nearest-the-playhead first, and failed cells retry after 1.5s.
 
 ## [1.0.3] - 2026-09-22
 

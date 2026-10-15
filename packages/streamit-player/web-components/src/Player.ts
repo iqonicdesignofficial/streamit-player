@@ -506,6 +506,8 @@ export class PlayerPlayer extends LitElement {
   @state() private isBrightnessFeedbackFadingOut = false;
   private brightnessFeedbackTimer?: number;
   private filmstripThumbs = new Map<number, ThumbnailInfo | null | undefined>();
+  /** Earliest time (ms) a failed filmstrip cell may be requested again. */
+  private filmstripRetryAt = new Map<number, number>();
   private preciseSeekContainerWidth = 1056;
 
   /** Thumbnail provider cache + neighbour preloading (see player-internals/ThumbnailCache). */
@@ -1157,6 +1159,7 @@ export class PlayerPlayer extends LitElement {
 
       if (oldState && oldState.currentSource !== state.currentSource) {
         this.filmstripThumbs.clear();
+        this.filmstripRetryAt.clear();
         this.filmstripCenterTime = -1;
         this.isPreciseSeeking = false;
         this.speedLockState = 'IDLE';
@@ -1537,6 +1540,7 @@ export class PlayerPlayer extends LitElement {
       if (oldSrc !== undefined && oldSrc !== this.src) {
         this.settingsMenu.close();
         this.filmstripThumbs.clear();
+        this.filmstripRetryAt.clear();
         this.filmstripCenterTime = -1;
         this.isPreciseSeeking = false;
         this.speedLockState = 'IDLE';
@@ -1684,6 +1688,7 @@ export class PlayerPlayer extends LitElement {
     if (this.toastTimer) clearTimeout(this.toastTimer);
     this.isDraggingSeekbar = false;
     this.filmstripThumbs.clear();
+    this.filmstripRetryAt.clear();
     this.gestures.endVisualTransition();
   }
 
@@ -2494,29 +2499,46 @@ export class PlayerPlayer extends LitElement {
     }
 
     const requestSource = this.playerState.currentSource;
-    times.forEach((t) => {
+    const now = Date.now();
+    // Nearest the playhead first, so the cells the user is looking at fill in first.
+    const requestOrder = [...times].sort(
+      (a, b) => Math.abs(a - activeTime) - Math.abs(b - activeTime)
+    );
+    requestOrder.forEach((t) => {
       const bucket = Math.round(t);
-      if (!this.filmstripThumbs.has(bucket)) {
-        this.filmstripThumbs.set(bucket, undefined);
-        const res = provider.getThumbnail(t, 'low');
-        if (res instanceof Promise) {
-          res
-            .then((thumb) => {
-              if (this.playerState.currentSource === requestSource) {
-                this.filmstripThumbs.set(bucket, thumb);
-                this.requestUpdate();
-              }
-            })
-            .catch((err) => {
-              console.debug('[Player] Filmstrip thumb loading error:', err);
-              if (this.playerState.currentSource === requestSource) {
-                this.filmstripThumbs.set(bucket, null);
-                this.requestUpdate();
-              }
-            });
-        } else {
-          this.filmstripThumbs.set(bucket, res);
-        }
+      if (this.filmstripThumbs.has(bucket)) return;
+      if ((this.filmstripRetryAt.get(bucket) ?? 0) > now) return;
+      this.filmstripThumbs.set(bucket, undefined);
+      // A request that was dropped or failed is forgotten (not cached as "no
+      // thumbnail") and retried after a short delay.
+      const markFailed = () => {
+        if (this.playerState.currentSource !== requestSource) return;
+        this.filmstripThumbs.delete(bucket);
+        this.filmstripRetryAt.set(bucket, Date.now() + 1500);
+        this.requestUpdate();
+        window.setTimeout(() => this.requestUpdate(), 1550);
+      };
+      const res = provider.getThumbnail(t, 'low');
+      if (res instanceof Promise) {
+        res
+          .then((thumb) => {
+            if (this.playerState.currentSource !== requestSource) return;
+            if (thumb) {
+              this.filmstripThumbs.set(bucket, thumb);
+              this.requestUpdate();
+            } else {
+              markFailed();
+            }
+          })
+          .catch((err) => {
+            console.debug('[Player] Filmstrip thumb loading error:', err);
+            markFailed();
+          });
+      } else if (res) {
+        this.filmstripThumbs.set(bucket, res);
+      } else {
+        this.filmstripThumbs.delete(bucket);
+        this.filmstripRetryAt.set(bucket, now + 1500);
       }
     });
 

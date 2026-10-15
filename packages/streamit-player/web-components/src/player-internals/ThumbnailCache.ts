@@ -1,4 +1,10 @@
+import { isConstrainedNetwork } from '../../../core/src/index';
 import type { PlayerController, PlayerSource, PlayerState, ThumbnailProvider } from '../../../core/src/index';
+
+/** Wait this long after playback starts before warming the hidden video, so startup keeps the bandwidth. */
+const WARM_UP_DELAY_MS = 2000;
+/** Neighbouring playlist items only get their first frame plus a few chapter frames. */
+const MAX_NEIGHBOUR_CHAPTER_FRAMES = 3;
 
 /**
  * The narrow slice of the `<player-player>` element that the thumbnail cache
@@ -21,14 +27,12 @@ export interface ThumbnailCacheHost {
  */
 interface CachedThumbnailProvider extends ThumbnailProvider {
   video?: HTMLVideoElement | null;
-  _preloadedIntervalsAdded?: boolean;
 }
 
 interface PreloadTask {
   provider: CachedThumbnailProvider;
   time: number;
   source: PlayerSource;
-  isInitial: boolean;
 }
 
 /**
@@ -49,6 +53,9 @@ export class ThumbnailCache {
   private mainProvider: CachedThumbnailProvider | null = null;
   private pendingTasks: PreloadTask[] = [];
   private activeIdleCallbackId: number | null = null;
+  private warmUpTimerId: number | null = null;
+  private warmedProvider: CachedThumbnailProvider | null = null;
+  private warmedSource: string | undefined;
 
   constructor(host: ThumbnailCacheHost) {
     this.host = host;
@@ -153,6 +160,8 @@ export class ThumbnailCache {
     }
     this.mainProvider = mainProvider;
 
+    this.scheduleWarmUp(mainProvider, playerState);
+
     if (!playerState.playlist || playerState.playlist.length <= 1) {
       // Clean up all cached providers since we only need the active one
       const currentSource = playerState.currentSource;
@@ -196,12 +205,15 @@ export class ThumbnailCache {
       this.providers.set(currentSource, mainProvider);
     }
 
+    // Neighbour preloading is a pure nicety: skip it when the user is saving data.
     const sourcesToPreload: Array<{ source: PlayerSource; url: string }> = [];
-    if (nextUrl && nextUrl !== currentSource) {
-      sourcesToPreload.push({ source: nextSource, url: nextUrl });
-    }
-    if (prevUrl && prevUrl !== currentSource && prevUrl !== nextUrl) {
-      sourcesToPreload.push({ source: prevSource, url: prevUrl });
+    if (!isConstrainedNetwork()) {
+      if (nextUrl && nextUrl !== currentSource) {
+        sourcesToPreload.push({ source: nextSource, url: nextUrl });
+      }
+      if (prevUrl && prevUrl !== currentSource && prevUrl !== nextUrl) {
+        sourcesToPreload.push({ source: prevSource, url: prevUrl });
+      }
     }
 
     for (const item of sourcesToPreload) {
@@ -221,24 +233,23 @@ export class ThumbnailCache {
       }
 
       // Add initial tasks:
-      // 1. Chapters if they exist
+      // 1. A few chapter frames, if chapters exist
       if (item.source.chapters && item.source.chapters.length > 0) {
-        for (const ch of item.source.chapters) {
+        for (const ch of item.source.chapters.slice(0, MAX_NEIGHBOUR_CHAPTER_FRAMES)) {
           this.pendingTasks.push({
             provider,
             time: ch.startTime,
             source: item.source,
-            isInitial: false,
           });
         }
       }
 
-      // 2. Request initial time (0) to force load the source/metadata in the hidden video
+      // 2. Request initial time (0): loads the source/metadata in the hidden
+      // video and caches the first frame (used as the transition poster).
       this.pendingTasks.push({
         provider,
         time: 0,
         source: item.source,
-        isInitial: true,
       });
     }
 
@@ -250,6 +261,9 @@ export class ThumbnailCache {
   /** Destroys every cached provider except the controller's own main one. */
   destroy(): void {
     this.cancelPendingPreloads();
+    this.cancelWarmUp();
+    this.warmedProvider = null;
+    this.warmedSource = undefined;
     for (const provider of this.providers.values()) {
       this.destroyProvider(provider, this.mainProvider, 'provider on disconnect');
     }
@@ -298,7 +312,7 @@ export class ThumbnailCache {
       const task = this.pendingTasks.shift();
       if (!task) break;
 
-      const { provider, time, source, isInitial } = task;
+      const { provider, time } = task;
 
       // Check if provider is still in cache (has not been evicted/destroyed)
       const cached = Array.from(this.providers.values()).includes(provider);
@@ -311,10 +325,6 @@ export class ThumbnailCache {
         if (result instanceof Promise) {
           await result;
         }
-
-        if (isInitial) {
-          this.expandPreloadTasksForProvider(provider, source);
-        }
       } catch (err) {
         console.warn('[Player] Error preloading thumbnail:', err);
       }
@@ -325,50 +335,45 @@ export class ThumbnailCache {
     }
   }
 
-  private expandPreloadTasksForProvider(provider: CachedThumbnailProvider, source: PlayerSource): void {
-    const url = source.src;
-    if (!url) return;
+  /**
+   * Shortly after playback starts, asks the active provider to load its hidden
+   * video's metadata so the first seekbar hover is not cold. Runs once per
+   * provider+source, never for live streams, never when saving data.
+   */
+  private scheduleWarmUp(provider: CachedThumbnailProvider, playerState: PlayerState): void {
+    if (typeof provider.warmUp !== 'function') return;
+    if (playerState.isLive || isConstrainedNetwork()) return;
+    const source = playerState.currentSource;
+    if (!source) return;
+    if (this.warmedProvider === provider && this.warmedSource === source) return;
+    this.cancelWarmUp();
 
-    if (provider._preloadedIntervalsAdded) {
-      return;
-    }
-    provider._preloadedIntervalsAdded = true;
-
-    const times = new Set<number>();
-    const video = provider.video;
-
-    if (video && video instanceof HTMLVideoElement && !isNaN(video.duration) && video.duration > 0) {
-      const duration = video.duration;
-      const steps = 10;
-      for (let i = 1; i < steps; i++) {
-        times.add(Math.round((i / steps) * duration));
+    this.warmUpTimerId = window.setTimeout(() => {
+      this.warmUpTimerId = null;
+      const run = () => {
+        // Skip if the user has since moved on to another source or provider.
+        const current = this.host.playerState;
+        if (this.mainProvider !== provider || current?.currentSource !== source) return;
+        this.warmedProvider = provider;
+        this.warmedSource = source;
+        try {
+          provider.warmUp?.();
+        } catch (e) {
+          console.debug('[Player] Thumbnail warm-up failed:', e);
+        }
+      };
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(run, { timeout: 3000 });
+      } else {
+        run();
       }
-    } else {
-      const fallbackTimes = [10, 20, 30, 45, 60, 90, 120, 180, 240, 300];
-      for (const t of fallbackTimes) {
-        times.add(t);
-      }
-    }
+    }, WARM_UP_DELAY_MS);
+  }
 
-    const currentTasks = this.pendingTasks
-      .filter((t) => t.provider === provider)
-      .map((t) => t.time);
-
-    for (const t of times) {
-      const cachedForTime =
-        typeof provider.getNearestCachedThumbnail === 'function'
-          ? provider.getNearestCachedThumbnail(t)
-          : null;
-      const isCached = !!cachedForTime && Math.abs((cachedForTime.time || 0) - t) < 1.0;
-
-      if (!isCached && !currentTasks.includes(t)) {
-        this.pendingTasks.push({
-          provider,
-          time: t,
-          source,
-          isInitial: false,
-        });
-      }
+  private cancelWarmUp(): void {
+    if (this.warmUpTimerId !== null) {
+      window.clearTimeout(this.warmUpTimerId);
+      this.warmUpTimerId = null;
     }
   }
 }
