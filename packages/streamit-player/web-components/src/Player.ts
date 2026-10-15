@@ -28,6 +28,12 @@ import { PrefetchController } from './player-internals/PrefetchController';
 import { SettingsMenuController } from './player-internals/SettingsMenuController';
 import { GestureController } from './player-internals/GestureController';
 import {
+  brightnessFilterValue,
+  clampBrightnessLevel,
+  loadBrightnessLevel,
+  saveBrightnessLevel,
+} from './player-internals/brightness';
+import {
   PlayerIconRegistry,
   IconRegistry,
   IconName,
@@ -314,6 +320,8 @@ export class PlayerPlayer extends LitElement {
         'volume',
         'isMuted',
         'isFullscreen',
+        'pictureInPicture',
+        'pictureInPictureSupported',
         'bufferedRanges',
         'playbackRate',
         'captionsEnabled',
@@ -492,6 +500,11 @@ export class PlayerPlayer extends LitElement {
   /** @internal */ @state() speedLockState: 'IDLE' | 'HOLDING' | 'READY_TO_LOCK' | 'LOCKED' | 'LOCKED_HOLDING' | 'READY_TO_UNLOCK' = 'IDLE';
   /** @internal */ @state() isSpeedOverlayFadingOut = false;
   @state() private isVolumeFeedbackFadingOut = false;
+  /** @internal Brightness level 0-1; 0.5 is the untouched picture. */
+  @state() brightnessLevel = loadBrightnessLevel();
+  @state() private activeBrightnessFeedback: number | null = null;
+  @state() private isBrightnessFeedbackFadingOut = false;
+  private brightnessFeedbackTimer?: number;
   private filmstripThumbs = new Map<number, ThumbnailInfo | null | undefined>();
   private preciseSeekContainerWidth = 1056;
 
@@ -934,6 +947,7 @@ export class PlayerPlayer extends LitElement {
   }
 
   firstUpdated() {
+    this.applyBrightnessFilter();
     // 1. Instantiate the headless PlayerController with merged config
     const activeDisplayMode = this.config?.displayMode || this.config?.layout?.mode || this.displayMode;
     const mergedConfig: PlayerConfiguration = {
@@ -1665,6 +1679,7 @@ export class PlayerPlayer extends LitElement {
     if (this.speedFeedbackTimer) clearTimeout(this.speedFeedbackTimer);
     if (this.qualityFeedbackTimer) clearTimeout(this.qualityFeedbackTimer);
     if (this.volumeFeedbackTimer) clearTimeout(this.volumeFeedbackTimer);
+    if (this.brightnessFeedbackTimer) clearTimeout(this.brightnessFeedbackTimer);
     if (this.throttledSeekTimer) clearTimeout(this.throttledSeekTimer);
     if (this.toastTimer) clearTimeout(this.toastTimer);
     this.isDraggingSeekbar = false;
@@ -2210,6 +2225,42 @@ export class PlayerPlayer extends LitElement {
         this.isVolumeFeedbackFadingOut = false;
         this.volumeFeedbackTimer = undefined;
         this.requestUpdate();
+      }, 200);
+    }, 1000);
+  }
+
+  /** @internal Sets, applies and persists the brightness level (0-1), then flashes the indicator. */
+  setBrightness(level: number) {
+    const next = clampBrightnessLevel(level);
+    if (next === this.brightnessLevel && this.activeBrightnessFeedback !== null) return;
+    this.brightnessLevel = next;
+    this.applyBrightnessFilter();
+    saveBrightnessLevel(next);
+    this.triggerBrightnessFeedback(next);
+  }
+
+  private applyBrightnessFilter() {
+    const video = this.videoElement;
+    if (!video) return;
+    video.style.filter = brightnessFilterValue(this.brightnessLevel);
+  }
+
+  private triggerBrightnessFeedback(level: number) {
+    if (this.brightnessFeedbackTimer) {
+      window.clearTimeout(this.brightnessFeedbackTimer);
+      this.brightnessFeedbackTimer = undefined;
+    }
+
+    this.activeBrightnessFeedback = level;
+    this.isBrightnessFeedbackFadingOut = false;
+
+    this.brightnessFeedbackTimer = window.setTimeout(() => {
+      this.isBrightnessFeedbackFadingOut = true;
+
+      this.brightnessFeedbackTimer = window.setTimeout(() => {
+        this.activeBrightnessFeedback = null;
+        this.isBrightnessFeedbackFadingOut = false;
+        this.brightnessFeedbackTimer = undefined;
       }, 200);
     }, 1000);
   }
@@ -3929,6 +3980,7 @@ export class PlayerPlayer extends LitElement {
     }
     if (id === 'seek' && configControls.seekbar === false) return false;
     if (id === 'speed' && configControls.playbackSpeed === false) return false;
+    if (id === 'brightness' && configControls.feedbackOverlay === false) return false;
     if (id === 'volume' && (configControls.volumeOverlay === false || configControls.volume === false || configControls.mute === false)) return false;
 
     return true;
@@ -4001,6 +4053,8 @@ export class PlayerPlayer extends LitElement {
       'play-pause',
       'seek',
       'volume',
+      'brightness',
+      'pip-placeholder',
       'speed',
       'error',
       'poster',
@@ -4108,6 +4162,50 @@ export class PlayerPlayer extends LitElement {
               `
         : html` <slot name="icon-volume"> ${renderIcon(player.getIcon('volume')!)} </slot> `}
           <span> ${isMuted ? 'Muted' : `${Math.round(volume * 100)}%`} </span>
+        </div>
+      </div>
+    `;
+  }
+
+  private renderDefaultBrightnessOverlay(player: PlayerPlayer) {
+    if (player.activeBrightnessFeedback === null) return '';
+    const percent = Math.round(player.activeBrightnessFeedback * 100);
+    return html`
+      <div
+        class="volume-feedback-overlay brightness-feedback-overlay ${player.isBrightnessFeedbackFadingOut
+        ? 'fade-out'
+        : ''}"
+        aria-hidden="true"
+      >
+        <div class="volume-feedback-pill" part="brightness-feedback-pill">
+          <slot name="icon-brightness">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.79 1.42-1.41zM4 10.5H1v2h3v-2zm9-9.95h-2V3.5h2V.55zm7.45 3.91l-1.41-1.41-1.79 1.79 1.41 1.41 1.79-1.79zm-3.21 13.7l1.79 1.8 1.41-1.41-1.8-1.79-1.4 1.4zM20 10.5v2h3v-2h-3zm-8-5c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm-1 16.95h2V19.5h-2v2.95zm-7.45-3.91l1.41 1.41 1.79-1.8-1.41-1.41-1.79 1.8z"
+              />
+            </svg>
+          </slot>
+          <span>${percent}%</span>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Replaces Chrome's built-in "Playing in picture-in-picture" text, which is
+   * drawn inside the <video> and cannot be styled, with an Amazon Prime-style
+   * placeholder: dimmed poster (when one is configured) plus a large centered icon.
+   */
+  private renderDefaultPipPlaceholder(player: PlayerPlayer) {
+    const poster = player.activePoster;
+    return html`
+      <div class="pip-placeholder" part="pip-placeholder" role="status">
+        ${poster ? html`<img class="pip-placeholder-poster" part="pip-placeholder-poster" src=${poster} alt="" />` : ''}
+        <div class="pip-placeholder-content" part="pip-placeholder-content">
+          <slot name="icon-pip-placeholder">${renderIcon(player.getIcon('pip')!)}</slot>
+          <span class="pip-placeholder-label" part="pip-placeholder-label">
+            ${player.localize('playingInPip', 'Playing in Picture-in-Picture')}
+          </span>
         </div>
       </div>
     `;
@@ -4584,6 +4682,10 @@ export class PlayerPlayer extends LitElement {
           <canvas part="transition-canvas" class="transition-canvas"></canvas>
         </div>
 
+        ${this.playerState.pictureInPicture && this.playerState.sourceType !== 'embed'
+        ? this.renderOverlay('pip-placeholder', (p) => this.renderDefaultPipPlaceholder(p))
+        : ''}
+
         ${!currentSource && this.emptyStateSectionEnabled && this.config?.controls?.emptyState !== false
         ? this.renderEmptyState()
         : html`
@@ -4687,6 +4789,9 @@ export class PlayerPlayer extends LitElement {
             : ''}
               ${this.activeVolumeFeedback && !this.playerState?.isAdPlaying
             ? this.renderOverlay('volume', (p) => this.renderDefaultVolumeOverlay(p))
+            : ''}
+              ${this.activeBrightnessFeedback !== null && !this.playerState?.isAdPlaying
+            ? this.renderOverlay('brightness', (p) => this.renderDefaultBrightnessOverlay(p))
             : ''}
               ${this.activeSpeedFeedback && !this.playerState?.isAdPlaying
             ? this.renderOverlay('speed', (p) => this.renderDefaultSpeedOverlay(p))

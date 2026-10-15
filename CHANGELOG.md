@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Brightness swipe.** A vertical swipe on the left half of the video now adjusts brightness (0-100%, 50% = original picture) with an on-screen percentage, like volume does on the right half. It is a video filter, remembered across sessions, and can be turned off with `gestures.brightness: false`.
+- **Landscape fullscreen on phones.** Entering fullscreen with a landscape video rotates touch devices to landscape and releases the lock on exit. Vertical mode and portrait videos are left alone. Opt out with `layout.lockLandscapeOnFullscreen: false`.
+- **Picture-in-Picture placeholder.** While in PiP the player area shows a centered PiP icon and "Playing in Picture-in-Picture" (over the dimmed poster, if one is set) instead of Chrome's plain built-in text. Themeable via CSS variables, parts and the `icon-pip-placeholder` slot.
+
+### Fixed
+
+- The player UI did not re-render when Picture-in-Picture started or ended, so the PiP button state could lag behind.
+
 ## [1.0.3] - 2026-09-22
 
 ### Fixed

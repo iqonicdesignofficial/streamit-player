@@ -1230,6 +1230,56 @@ export const styles = css`
     align-items: center;
   }
 
+  /* Picture-in-Picture placeholder: covers Chrome's unstyleable native
+     "Playing in picture-in-picture" text. Taps pass through to the video. */
+  .pip-placeholder {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    pointer-events: none;
+    background: var(--player-pip-placeholder-bg, #0b0b0f);
+  }
+
+  .pip-placeholder-poster {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: var(--player-pip-placeholder-poster-opacity, 0.28);
+    filter: blur(var(--player-pip-placeholder-poster-blur, 6px));
+    transform: scale(1.06);
+  }
+
+  .pip-placeholder-content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 0 16px;
+    text-align: center;
+    color: var(--player-pip-placeholder-color, rgba(255, 255, 255, 0.78));
+  }
+
+  .pip-placeholder-content svg {
+    width: clamp(48px, 14%, 96px);
+    height: auto;
+    max-height: 96px;
+    fill: currentColor;
+    display: block;
+  }
+
+  .pip-placeholder-label {
+    font-size: clamp(13px, 2.4vw, 18px);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
   /* Replay Overlay Glassmorphism styling */
   .replay-overlay {
     position: absolute;

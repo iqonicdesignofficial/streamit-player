@@ -397,6 +397,24 @@ export interface PlayerConfiguration extends PlayerConfig {
      * - 'floating' (Experimental/Internal): Centered floating dialog player.
      */
     mode?: 'standard' | 'vertical' | 'audio-only' | 'custom' | 'mini' | 'floating';
+    /**
+     * Rotate touch devices to landscape when a landscape video enters
+     * fullscreen, and release the lock on exit. Ignored in 'vertical' mode and
+     * for portrait videos. Needs the Screen Orientation Lock API (Android
+     * Chrome and most Chromium browsers; iOS handles rotation natively).
+     * @default true
+     */
+    lockLandscapeOnFullscreen?: boolean;
+  };
+  /** Pointer/touch gestures on the standard player surface. */
+  gestures?: {
+    /**
+     * Vertical swipe on the left half of the video adjusts brightness (the
+     * right half adjusts volume). Applied as a video filter, since web pages
+     * cannot change device brightness.
+     * @default true
+     */
+    brightness?: boolean;
   };
   playback?: {
     autoplay?: boolean;

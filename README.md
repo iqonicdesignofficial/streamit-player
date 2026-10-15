@@ -272,6 +272,8 @@ When the browser supports the Media Session API, the player automatically wires 
 | **Mini display mode** | A distinct, fixed bottom-right-docked compact player layout (own CSS, not the OS-level PiP window) |
 | **Floating display mode** | A distinct, fixed, screen-centered modal-style floating player layout |
 
+**While in PiP**, the player shows its own placeholder over the video area - a large centered PiP icon and "Playing in Picture-in-Picture" (Chrome's built-in text cannot be styled, so it is covered). If a `poster` is set it is shown dimmed behind the icon; a live video frame cannot be shown because the browser moves the picture into the PiP window. Customize with the `icon-pip-placeholder` slot, the `pip-placeholder*` parts, `overlays['pip-placeholder']`, or the `--player-pip-placeholder-bg` / `-color` / `-poster-opacity` / `-poster-blur` CSS variables.
+
 **Configurable:** PiP control-bar button via `controls.pictureInPicture`/`controls.pip`; PiP as a settings-menu row is opt-in (`settings.pictureInPicture`); Mini/Floating are selected via `displayMode`.
 
 ---
@@ -310,12 +312,13 @@ Note: the initial config values for these (e.g. `config.volume`) only apply on a
 | **Double-tap (right side)** | Fast-forward by the same interval, with a forward-feedback overlay | Right half of video | Same as above |
 | **Horizontal drag (swipe-to-seek)** | Scrubs playback position proportional to drag distance (up to 90s or full duration) | Anywhere on video (standard mode) | **Not currently configurable** - no dedicated toggle exists; only gated by "not live" and duration > 0 |
 | **Vertical drag on right half (volume gesture)** | Adjusts volume proportionally to drag height, shows a live "N%" HUD pill | Right half of video, standard mode only | **The gesture itself has no dedicated toggle**; the resulting on-screen HUD can be hidden via the volume-overlay config |
+| **Vertical drag on left half (brightness gesture)** | Dims or brightens the video on a 0-100% scale (50% = the original picture, 0% = darkest, 100% = brightest) with a live "N%" HUD pill. The level is remembered across sessions. Web pages cannot change device brightness, so this is a video filter - it does not affect the rest of the screen | Left half of video, standard mode only | `gestures.brightness: false` disables it; the HUD follows `controls.feedbackOverlay` and `overlays.brightness` |
 | **Long-press (speed boost)** | Holding for 500ms boosts playback speed (default 2×), with an on-screen speed indicator | Anywhere on video | `vertical.gestures.longPressToSpeed` (on by default in vertical mode, off in standard mode) and `vertical.gestures.longPressSpeed` (target multiplier) |
 | **Long-press + drag down (speed lock)** | While long-pressing, dragging down past a threshold arms a "lock" so 2× speed persists after release - press again and drag down to unlock. On-screen prompts guide the gesture ("Slide down to lock 2× speed" → "Release to lock") | Same | Bundled with the long-press toggle above - no separate flag |
 | **Vertical swipe (feed navigation)** | See [§18](#18-vertical-feed-player-reels--shorts-style) below | Anywhere except buttons/seekbar/menus, vertical mode only | `vertical.gestures.swipeToNavigate`, `vertical.snapBehavior` |
 | **Mouse wheel / trackpad scroll** | Desktop equivalent of the vertical swipe - scrolls to the next/previous playlist item | Vertical mode only | Implicitly requires a multi-item playlist |
 
-A "brightness" gesture does **not** exist in the current codebase - noted here explicitly so it isn't assumed to be present.
+**Fullscreen on phones:** entering fullscreen with a landscape video rotates a touch device to landscape (Screen Orientation Lock API: Android Chrome and most Chromium browsers; iOS rotates natively). The lock is released on exit. Vertical mode and portrait videos stay portrait. Opt out with `layout.lockLandscapeOnFullscreen: false`.
 
 ---
 

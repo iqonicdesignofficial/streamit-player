@@ -32,6 +32,7 @@ import { PlaylistManager } from './PlaylistManager';
 import { SubtitleManager } from './SubtitleManager';
 import { PictureInPictureManager } from './PictureInPictureManager';
 import { safeStorage } from './storage';
+import { lockLandscapeForFullscreen, unlockOrientation } from './OrientationLock';
 
 /**
  * Some `SourceHandler` implementations (currently `DashHandler`) support a
@@ -1101,6 +1102,7 @@ export class PlayerController {
     this.video.removeEventListener('webkitbeginfullscreen', this.handleWebkitBeginFullscreen);
     this.video.removeEventListener('webkitendfullscreen', this.handleWebkitEndFullscreen);
     this.pictureInPictureManager.detach();
+    this.releaseFullscreenOrientationLock();
 
     this.stateCallbacks.clear();
   }
@@ -1514,6 +1516,11 @@ export class PlayerController {
     );
     this.updateState({ isFullscreen: isFs });
     this.dispatchEvent('fullscreenchange', { isFullscreen: isFs });
+    if (isFs) {
+      void this.applyFullscreenOrientationLock();
+    } else {
+      this.releaseFullscreenOrientationLock();
+    }
   };
 
   private handleWebkitBeginFullscreen = () => {
@@ -1525,6 +1532,30 @@ export class PlayerController {
     this.updateState({ isFullscreen: false });
     this.dispatchEvent('fullscreenchange', { isFullscreen: false });
   };
+
+  private fullscreenOrientationLocked = false;
+
+  /** Rotates a touch device to landscape for landscape video; see {@link lockLandscapeForFullscreen}. */
+  private async applyFullscreenOrientationLock(): Promise<void> {
+    const locked = await lockLandscapeForFullscreen({
+      enabled: this.config.layout?.lockLandscapeOnFullscreen,
+      isVerticalLayout: this.config.layout?.mode === 'vertical',
+      videoWidth: this.video?.videoWidth,
+      videoHeight: this.video?.videoHeight,
+    });
+    // Fullscreen may have been exited while the lock request was pending.
+    if (locked && !this.state.isFullscreen) {
+      unlockOrientation();
+      return;
+    }
+    this.fullscreenOrientationLocked = locked;
+  }
+
+  private releaseFullscreenOrientationLock(): void {
+    if (!this.fullscreenOrientationLocked) return;
+    this.fullscreenOrientationLocked = false;
+    unlockOrientation();
+  }
 
   // --- Media API Operations ---
   public play() {

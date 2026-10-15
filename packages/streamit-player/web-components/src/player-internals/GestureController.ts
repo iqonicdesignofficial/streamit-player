@@ -32,6 +32,9 @@ export interface GestureHost extends HTMLElement {
   transitionDirection: 'next' | 'prev';
   transitionStage: 'idle' | 'start' | 'active';
   speedLockState: SpeedLockState;
+  /** Brightness level 0-1 (0.5 = untouched picture). */
+  readonly brightnessLevel: number;
+  setBrightness(level: number): void;
   isSpeedOverlayFadingOut: boolean;
   activeSpeedFeedback: number | null;
   speedFeedbackTimer?: number;
@@ -60,6 +63,7 @@ export interface GestureHost extends HTMLElement {
  *    LOCKED -> LOCKED_HOLDING -> READY_TO_UNLOCK lock/unlock state machine
  *  - double-tap-to-seek (and the single-tap play toggle it defers to)
  *  - horizontal drag to scrub / vertical drag on the right half to set volume
+ *    and on the left half to set brightness
  *  - swipe- and wheel-to-navigate between playlist items
  *
  * The transition lives here too because the swipe gesture drives it directly: a
@@ -82,6 +86,7 @@ export class GestureController {
   private gestureLongPressTimer: number | null = null;
   private gestureIsRightSide = false;
   private gestureStartVolume = 0;
+  private gestureStartBrightness = 0.5;
   private gestureActiveDrag: 'NONE' | 'HORIZONTAL' | 'VERTICAL' = 'NONE';
   private gestureStartTimeVal = 0;
   private gestureLastTouchType = false;
@@ -656,6 +661,7 @@ export class GestureController {
     }
 
     this.gestureStartVolume = this.host.playerState.volume || 0;
+    this.gestureStartBrightness = this.host.brightnessLevel;
     this.gestureStartTimeVal = this.host.playerState.currentTime || 0;
     this.gestureActiveDrag = 'NONE';
 
@@ -743,6 +749,11 @@ export class GestureController {
             this.host.handleActivity();
           }
         } else {
+          if (this.host.videoElement && this.host.config?.gestures?.brightness !== false) {
+            const rect = this.host.videoElement.getBoundingClientRect();
+            const percentChange = -(deltaY / rect.height);
+            this.host.setBrightness(this.gestureStartBrightness + percentChange);
+          }
           this.host.handleActivity();
         }
       }
