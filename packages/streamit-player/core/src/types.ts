@@ -105,7 +105,91 @@ export interface EmptyStateConfig {
   render?: (player: unknown) => unknown;
 }
 
+/**
+ * Options passed straight to the hls.js constructor (see the hls.js `HlsConfig`
+ * docs for the full list). The common ones are typed below; any other hls.js
+ * option is accepted too. They are applied on top of the player's own
+ * defaults - `enableWorker: true`, `lowLatencyMode: true`,
+ * `liveSyncDurationCount: 3` and, for `live-only`, `liveMaxLatencyDurationCount: 10` -
+ * and DRM settings (`emeEnabled`, `licenseServers`, `emeConfigurations`, ...)
+ * are always the player's, derived from `config.drm`.
+ */
+export interface HlsConfigOverrides {
+  /** Low-latency HLS (LL-HLS) support. On by default; set `false` to disable, e.g. for VOD-only players. */
+  lowLatencyMode?: boolean;
+  /** Cap the selected quality level to the player's size. */
+  capLevelToPlayerSize?: boolean;
+  /** Seconds of media to buffer ahead of the playhead. */
+  maxBufferLength?: number;
+  /** Upper bound for `maxBufferLength` when hls.js grows it. */
+  maxMaxBufferLength?: number;
+  /** Seconds of media to keep behind the playhead. */
+  backBufferLength?: number;
+  /** Distance, in target durations, from the live edge that playback starts at. */
+  liveSyncDurationCount?: number;
+  /** Maximum latency, in target durations, before hls.js catches up to the live edge. */
+  liveMaxLatencyDurationCount?: number;
+  /** Fragment load timeouts and retry policy. */
+  fragLoadPolicy?: unknown;
+  /** Playlist (level) load timeouts and retry policy. */
+  playlistLoadPolicy?: unknown;
+  /** Master manifest load timeouts and retry policy. */
+  manifestLoadPolicy?: unknown;
+  /** Any other hls.js configuration option. */
+  [option: string]: unknown;
+}
+
+/**
+ * How the player reacts when playback stops making progress. Every field is
+ * optional; invalid values (non-numbers, negatives, out of range) fall back to
+ * the default with a console warning. Read when the source loads (network /
+ * media) or on every check (stall), so `updateConfig()` takes effect for the
+ * stall watchdog immediately and for HLS/DASH on the next source.
+ */
+export interface RecoveryConfig {
+  /** Fatal HLS/DASH network errors (HTTP 403/404/5xx, timeouts, unreachable segments). */
+  network?: {
+    /** Reload attempts before a fatal error is raised. `0` fails on the first error. Default `3`, max `20`. */
+    maxRetries?: number;
+    /** Delay before the first reload attempt, in ms; it doubles on each further attempt. Default `2000` (2s, 4s, 8s). */
+    retryDelayMs?: number;
+    /**
+     * HLS only. How long a reload attempt may stay silent (no progress, no new
+     * error) while the viewer is out of data before it counts as failed, in ms.
+     * Default `20000`, minimum `1000`.
+     */
+    attemptTimeoutMs?: number;
+    /**
+     * HLS only. HTTP statuses that mean retrying cannot help (the server refused
+     * the credentials, e.g. an expired signed URL). A fatal network error with one
+     * of these codes is reported at once instead of going through the retry
+     * ladder. Default `[401, 403, 410]`; `[]` retries every error.
+     */
+    noRetryStatuses?: number[];
+  };
+  /** The watchdog for "playing but the playhead is not moving", in any state including buffering. */
+  stall?: {
+    /** Set `false` to switch the watchdog off entirely. Default `true`. */
+    enabled?: boolean;
+    /** Nudge the playhead 0.1s past a decoder hiccup after this long stuck (not while buffering), in ms. Default `5000`. */
+    nudgeAfterMs?: number;
+    /** Ask the stream to restart loading after this long stuck, in ms. Default `15000`. */
+    restartAfterMs?: number;
+    /** Raise a fatal `Playback stalled` error after this long stuck, in ms. Default `60000`. */
+    failAfterMs?: number;
+  };
+  /** HLS media (decode) error recovery. */
+  media?: {
+    /** Seconds of playback past the last decode error before its recovery budget is restored. Default `10`. */
+    resetAfterSeconds?: number;
+  };
+}
+
 export interface PlayerConfig {
+  /** Advanced: options passed to hls.js when an HLS source plays. See {@link HlsConfigOverrides}. */
+  hls?: HlsConfigOverrides;
+  /** Retry, stall and decode-error recovery thresholds. See {@link RecoveryConfig}. */
+  recovery?: RecoveryConfig;
   /** Enables automatic media playback on source load. */
   autoplay?: boolean;
   /** Starts playback with audio muted. */
@@ -701,7 +785,12 @@ export interface PlayerEvents {
   pause: undefined;
   seekstart: undefined;
   seekend: undefined;
-  error: { message: string };
+  /**
+   * Playback failed for good. `httpCode` and `details` (the hls.js error detail,
+   * e.g. `fragLoadError`) are present when a network error caused it, so an app
+   * can tell an expired link (403) from a connection that is down.
+   */
+  error: { message: string; httpCode?: number; details?: string };
   chapterchange: { activeChapterIndex: number; chapter: Chapter | null };
   volumechange: { volume: number };
   mutechange: { isMuted: boolean };

@@ -103,7 +103,83 @@ player.addEventListener('player-timeupdate', (e) => console.log('Time:', e.detai
 player.on('ended', () => console.log('Finished'));
 ```
 
+Event names are the controller's own, so a few are camelCase (`player-audioTracksChanged`, `player-audioTrackChanged`); DOM event names are case-sensitive.
+
 For advanced control, `player.controllerInstance` returns the underlying headless `PlayerController`.
+
+### Errors and stalls
+
+When playback dies, the player sets `status: 'error'` and `error` in its state **and** dispatches `player-error` (`event.detail.message`) - for native media errors, HLS/DASH failures, DRM failures and rejected sources alike:
+
+```js
+player.addEventListener('player-error', (e) => showRetryUi(e.detail.message));
+```
+
+When a network error caused the failure, `event.detail` also carries `httpCode` (for example `403`) and `details` (the hls.js error, for example `fragLoadError`). An app can tell an expired link, which needs a new one, from a connection that is down:
+
+```js
+player.addEventListener('player-error', (e) => {
+  const { message, httpCode } = e.detail;
+  if (httpCode === 401 || httpCode === 403 || httpCode === 410) return openFreshSession();
+  showRetryUi(message);
+});
+```
+
+HLS network failures (HTTP 404/5xx, a segment that never answers) are retried 3 times with 2s, 4s and 8s backoff before the error is raised. A refusal (HTTP 401, 403 or 410, such as an expired signed URL) is not retried by the player, because asking again gets the same answer, and is reported at once. hls.js itself still retries a refused segment for about 30s before it reports anything; lower that with `config.hls.fragLoadPolicy` (see "Tuning hls.js" below). the retry budget is only restored once video actually plays again. A separate watchdog covers "playing but not advancing" in any state, including buffering: after 15s without progress the stream is told to restart loading, and after 60s the player raises a `Playback stalled` error. The error clears by itself if playback recovers.
+
+All of these numbers are configurable with `config.recovery`. Every field is optional; the values below are the defaults:
+
+```js
+player.config = {
+  recovery: {
+    network: {
+      maxRetries: 3,          // reload attempts before the error is raised (0 = fail on the first error, max 20)
+      retryDelayMs: 2000,     // first delay; doubles each attempt (2s, 4s, 8s)
+      attemptTimeoutMs: 20000, // HLS only: a reload that stays silent this long, with the viewer out of data, counts as failed
+      noRetryStatuses: [401, 403, 410] // HLS only: HTTP statuses reported at once instead of retried ([] retries every error)
+    },
+    stall: {
+      enabled: true,          // false switches the watchdog off
+      nudgeAfterMs: 5000,     // nudge the playhead 0.1s past a decoder hiccup (not while buffering)
+      restartAfterMs: 15000,  // ask the stream to restart loading
+      failAfterMs: 60000      // raise the `Playback stalled` error
+    },
+    media: {
+      resetAfterSeconds: 10   // HLS decode errors: seconds of playback before their 3-stage recovery budget is restored
+    }
+  }
+};
+```
+
+- `network` applies to HLS and DASH (`attemptTimeoutMs` and `noRetryStatuses` are HLS only) and is read when a source loads. `stall` is read on every check, so `updateConfig()` takes effect immediately.
+- Invalid values (wrong type, negative, below the minimum of 1000ms for timeouts) fall back to the default and log a `[Player SDK Configuration Warning]`; they never stop playback. Unknown keys are reported as likely typos.
+- The stall stages must run in order, `nudgeAfterMs <= restartAfterMs < failAfterMs`. If `restartAfterMs` is not below `failAfterMs` it is lowered to half of it.
+- A long `failAfterMs` suits slow networks or very large segments; set `stall.enabled: false` if your app does its own stall handling.
+
+### Tuning hls.js
+
+`config.hls` is passed to the hls.js constructor, on top of the player's defaults (`enableWorker: true`, `lowLatencyMode: true`, `liveSyncDurationCount: 3`). DRM settings always come from `config.drm` and cannot be overridden here.
+
+```js
+player.config = {
+  hls: {
+    lowLatencyMode: false, // plain VOD player: skip LL-HLS handling
+    capLevelToPlayerSize: true,
+    maxBufferLength: 20,
+    backBufferLength: 30,
+    fragLoadPolicy: {
+      default: {
+        maxTimeToFirstByteMs: 8000,
+        maxLoadTimeMs: 20000,
+        timeoutRetry: { maxNumRetry: 2, retryDelayMs: 0, maxRetryDelayMs: 0 },
+        errorRetry: { maxNumRetry: 3, retryDelayMs: 1000, maxRetryDelayMs: 8000 },
+      },
+    },
+  },
+};
+```
+
+For token-protected streams, a low `errorRetry.maxNumRetry` (for example `1`) makes an expired link fail within about a second instead of after hls.js's ~30s of retries. Set `config.hls` before loading the source: it is read each time an HLS source starts. See the hls.js `HlsConfig` documentation for every option.
 
 ---
 

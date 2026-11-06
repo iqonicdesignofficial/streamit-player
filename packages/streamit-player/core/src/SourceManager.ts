@@ -6,6 +6,7 @@ import type {
   Representation as DashRepresentation,
 } from 'dashjs';
 import { loadHls, loadDashjs } from './vendorLoaders';
+import { DEFAULT_RECOVERY, resolveRecoveryConfig, type ResolvedRecovery } from './recovery';
 import {
   PlayerSource,
   SourceType,
@@ -261,6 +262,8 @@ export interface SourceHandler {
   setAudioTrack?(index: number): void;
   setSubtitleTrack?(index: number): void;
   seekToLiveEdge?(): void;
+  /** Restart loading after the controller's stall watchdog saw no playback progress for a while. */
+  recoverStall?(): void;
   getRawLiveInfo?(): RawLiveInfo | null;
   managesSubtitles?: boolean;
   getStats?(): Partial<PlayerStatistics>;
@@ -507,6 +510,16 @@ export class HlsHandler implements SourceHandler {
   private hls: Hls | null = null;
   private hlsRetryCount = 0;
   private mediaRecoveryCount = 0;
+  /** Playhead position of the most recent media error; the recovery budget is restored once playback gets well past it. */
+  private mediaErrorPosition: number | null = null;
+  /** Retry / watchdog / media-recovery numbers, resolved from `config.recovery` when a source loads. */
+  private recovery: ResolvedRecovery = DEFAULT_RECOVERY;
+  /** Pending backoff timer between a fatal network error and the reload attempt. */
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Fires when a reload attempt goes quiet: no progress and no further error from hls.js. */
+  private retryWatchdog: ReturnType<typeof setTimeout> | null = null;
+  /** The error that started the current recovery, so a silent attempt can be retried the same way. */
+  private lastNetworkError: { details?: string; httpCode?: number } | null = null;
   private controller: PlayerController | null = null;
   private video: HTMLVideoElement | null = null;
   private lastLevelIndex = -1;
@@ -522,6 +535,159 @@ export class HlsHandler implements SourceHandler {
 
   getDrmManager(): DrmManager | null {
     return this.drmManager;
+  }
+
+  /** How soon to look again when a quiet attempt is not actually starving the viewer yet. */
+  private static readonly RETRY_RECHECK_MS = 5000;
+  /** Less buffered media than this ahead of the playhead counts as starving. */
+  private static readonly STARVING_BUFFER_AHEAD_SECONDS = 1;
+
+  private clearRetryTimers() {
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+    if (this.retryWatchdog) {
+      clearTimeout(this.retryWatchdog);
+      this.retryWatchdog = null;
+    }
+  }
+
+  /**
+   * Called when media has really moved forward (a main-stream fragment was
+   * buffered). Only this - not a playlist reload, which hls.js repeats during
+   * every recovery - restores the retry budget and ends the current recovery.
+   */
+  private noteLoadingProgress() {
+    this.hlsRetryCount = 0;
+    this.lastNetworkError = null;
+    this.clearRetryTimers();
+  }
+
+  /** True when playback has run out of (or is about to run out of) data to play. */
+  private isStarving(): boolean {
+    const video = this.video;
+    if (!video || video.ended) return false;
+    // HAVE_FUTURE_DATA (3) or more means the next frames are available.
+    if (video.readyState < 3) return true;
+    const time = video.currentTime;
+    const ranges = video.buffered;
+    for (let i = 0; i < ranges.length; i++) {
+      if (time >= ranges.start(i) - 0.1 && time <= ranges.end(i)) {
+        return ranges.end(i) - time < HlsHandler.STARVING_BUFFER_AHEAD_SECONDS;
+      }
+    }
+    return true;
+  }
+
+  private networkErrorMessage(
+    details: string | undefined,
+    httpCode: number | undefined,
+    stalled: boolean
+  ): string {
+    if (details === 'manifestLoadError') {
+      if (httpCode === 404) {
+        return 'Stream not found (404). The URL may be expired, moved, or invalid.';
+      }
+      if (httpCode === 403) {
+        return 'Access denied (403). The stream may be geo-restricted or require authentication.';
+      }
+      if (httpCode !== undefined && httpCode >= 500) {
+        return `Stream server error (${httpCode}). The server is temporarily unavailable.`;
+      }
+      return `Failed to load stream manifest${httpCode ? ` (HTTP ${httpCode})` : ''}. Check the URL and try again.`;
+    }
+    if (details === 'manifestLoadTimeOut') {
+      return 'Stream connection timed out. The server may be slow or unreachable.';
+    }
+    if (httpCode === 401 || httpCode === 403 || httpCode === 410) {
+      return `Stream access was refused (HTTP ${httpCode}). The link may have expired; request a new one and try again.`;
+    }
+    if (details === 'manifestParsingError') {
+      return 'Invalid stream format. The URL does not point to a valid HLS stream.';
+    }
+    if (stalled) {
+      return 'Playback stalled: the stream stopped loading data. Check the URL and try again.';
+    }
+    return 'Fatal streaming connection failure. Check the URL and try again.';
+  }
+
+  /**
+   * One failed recovery attempt (or the first fatal error): back off and reload,
+   * or - once the retry budget is spent - surface a fatal error.
+   */
+  private handleNetworkFailure(
+    hls: Hls,
+    source: PlayerSource,
+    controller: PlayerController,
+    details: string | undefined,
+    httpCode: number | undefined,
+    stalled: boolean
+  ) {
+    this.clearRetryTimers();
+    this.lastNetworkError = { details, httpCode };
+
+    const { maxRetries, retryDelayMs, attemptTimeoutMs, noRetryStatuses } = this.recovery.network;
+    // The server said no (expired or refused credentials): another attempt gets the
+    // same answer, so skip the ladder and let the app ask for a fresh link.
+    const refused = httpCode !== undefined && noRetryStatuses.includes(httpCode);
+    if (!refused && this.hlsRetryCount < maxRetries) {
+      this.hlsRetryCount++;
+      // retryDelayMs, then doubling: 2s, 4s, 8s with the defaults.
+      const delay = retryDelayMs * Math.pow(2, this.hlsRetryCount - 1);
+      console.warn(
+        `HLS Network error encountered (detail: ${details}, HTTP: ${httpCode ?? 'N/A'}${stalled ? ', no progress' : ''}). Retrying in ${delay}ms (${this.hlsRetryCount}/${maxRetries})...`
+      );
+      this.retryTimer = setTimeout(() => {
+        this.retryTimer = null;
+        if (this.hls !== hls || this.controller !== controller) return;
+        const pending = this.lastNetworkError?.details;
+        if (
+          pending === 'manifestLoadError' ||
+          pending === 'manifestLoadTimeOut' ||
+          pending === 'manifestParsingError'
+        ) {
+          hls.loadSource(source.src!);
+        } else {
+          hls.startLoad();
+        }
+        this.armRetryWatchdog(hls, source, controller, attemptTimeoutMs);
+      }, delay);
+    } else {
+      console.error(
+        `Fatal HLS Network error. ${refused ? 'Request refused, not retrying.' : 'Retries exhausted.'} Detail: ${details}, HTTP: ${httpCode ?? 'N/A'}`
+      );
+      controller.reportFatalError(this.networkErrorMessage(details, httpCode, stalled), {
+        httpCode,
+        details,
+      });
+      this.destroy();
+    }
+  }
+
+  /**
+   * hls.js does not always follow a reload with another error (a segment that
+   * never answers can take minutes to time out), so a quiet attempt would leave
+   * the player buffering indefinitely. If no progress arrives in time and the
+   * viewer is genuinely out of data, the attempt counts as failed.
+   */
+  private armRetryWatchdog(
+    hls: Hls,
+    source: PlayerSource,
+    controller: PlayerController,
+    delay: number
+  ) {
+    if (this.retryWatchdog) clearTimeout(this.retryWatchdog);
+    this.retryWatchdog = setTimeout(() => {
+      this.retryWatchdog = null;
+      if (this.hls !== hls || this.controller !== controller) return;
+      if (!this.isStarving()) {
+        this.armRetryWatchdog(hls, source, controller, HlsHandler.RETRY_RECHECK_MS);
+        return;
+      }
+      const last = this.lastNetworkError;
+      this.handleNetworkFailure(hls, source, controller, last?.details, last?.httpCode, true);
+    }, delay);
   }
 
   private startLivePolling() {
@@ -540,6 +706,11 @@ export class HlsHandler implements SourceHandler {
 
   public getLiveSyncPosition(): number | null {
     return this.hls ? this.hls.liveSyncPosition : null;
+  }
+
+  recoverStall() {
+    // hls.js resumes from the last playhead position.
+    this.hls?.startLoad();
   }
 
   private pollLiveStats() {
@@ -587,6 +758,8 @@ export class HlsHandler implements SourceHandler {
     this.uniqueAudioTracks = [];
     this.hlsRetryCount = 0;
     this.mediaRecoveryCount = 0;
+    this.mediaErrorPosition = null;
+    this.recovery = resolveRecoveryConfig(controller.config?.recovery);
 
     loadHls()
       .then((HlsLib) => {
@@ -770,11 +943,18 @@ export class HlsHandler implements SourceHandler {
             .then((emeOptions) => {
               if (this.controller !== controller) return;
 
+              // Integrator overrides (config.hls) sit on top of the defaults;
+              // emeOptions come last so they can never switch DRM off or
+              // point it at another license server.
+              const userHlsConfig = controller.config?.hls;
+              const hlsOverrides =
+                userHlsConfig && typeof userHlsConfig === 'object' ? userHlsConfig : {};
               const hls = new HlsClass({
                 enableWorker: true,
                 lowLatencyMode: true,
                 liveSyncDurationCount: 3,
                 liveMaxLatencyDurationCount: isLiveOnly ? 10 : undefined,
+                ...hlsOverrides,
                 ...emeOptions,
               } as Partial<HlsConfig> & Partial<HlsLegacyEmeOptions>);
 
@@ -787,8 +967,9 @@ export class HlsHandler implements SourceHandler {
 
           hls.on(HlsClass.Events.LEVEL_LOADED, (_: string, data: HlsLevelLoadedData) => {
             if (this.controller !== controller || this.hls !== hls) return;
-            this.hlsRetryCount = 0;
-            this.mediaRecoveryCount = 0;
+            // Neither recovery budget is reset here: hls.js re-emits
+            // LEVEL_LOADED during every recovery (always for live), so it is not
+            // proof the stream works. See noteLoadingProgress().
             const details = data.details;
             if (details) {
               const isLive = details.live;
@@ -838,8 +1019,12 @@ export class HlsHandler implements SourceHandler {
 
           hls.on(HlsClass.Events.MANIFEST_PARSED, () => {
             controller.dispatchEvent('manifestloaded', { system: 'hls', levels: hls.levels.length });
-            this.hlsRetryCount = 0;
-            this.mediaRecoveryCount = 0;
+            // A manifest reload that succeeded: later quiet attempts must retry
+            // the segment loading, not re-fetch the manifest. The retry budget
+            // is only restored by real progress (see noteLoadingProgress()).
+            if (this.lastNetworkError) {
+              this.lastNetworkError = { ...this.lastNetworkError, details: undefined };
+            }
             const hasMultiple = hls.levels.length > 1;
             const qualities: string[] = [];
             if (hasMultiple) {
@@ -893,15 +1078,49 @@ export class HlsHandler implements SourceHandler {
             controller.setManagedSubtitleTracks('hls', hlsSubTracks, data.id);
           });
 
+          let subtitleAnnouncementPending = false;
           hls.on(HlsClass.Events.SUBTITLE_TRACKS_UPDATED, () => {
-            const hlsSubTracks = hls.subtitleTracks.map((t) => ({
-              label: t.name || t.lang || 'Unknown',
-              language: t.lang || '',
-              default: !!t.default,
-              forced: !!t.forced,
-              kind: t.type === 'CLOSED-CAPTIONS' ? ('captions' as const) : ('subtitles' as const),
-            }));
-            controller.setManagedSubtitleTracks('hls', hlsSubTracks, hls.subtitleTrack);
+            // hls.js fires this event and then, still in the same call, picks
+            // its own default track (usually "none"). Announcing right here
+            // handed integrators a window in which a selection they made was
+            // overwritten a moment later. Wait for hls.js to settle, then
+            // announce the final state.
+            if (subtitleAnnouncementPending) return;
+            subtitleAnnouncementPending = true;
+            queueMicrotask(() => {
+              subtitleAnnouncementPending = false;
+              if (this.controller !== controller || this.hls !== hls) return;
+              const hlsSubTracks = hls.subtitleTracks.map((t) => ({
+                label: t.name || t.lang || 'Unknown',
+                language: t.lang || '',
+                default: !!t.default,
+                forced: !!t.forced,
+                kind: t.type === 'CLOSED-CAPTIONS' ? ('captions' as const) : ('subtitles' as const),
+              }));
+              controller.setManagedSubtitleTracks('hls', hlsSubTracks, hls.subtitleTrack);
+            });
+          });
+
+          hls.on(HlsClass.Events.FRAG_BUFFERED, (_: string, data: { frag?: { type?: string } }) => {
+            if (this.controller !== controller || this.hls !== hls) return;
+            // Only the main stream counts: audio/subtitle fragments can keep
+            // arriving while the video segment is still failing.
+            if (data?.frag?.type && data.frag.type !== 'main') return;
+            this.noteLoadingProgress();
+
+            // Media (decode) errors get their budget back only after playback
+            // has moved well past where the last one happened, so a stream that
+            // fails again right after each recovery cannot loop forever.
+            if (
+              this.mediaRecoveryCount > 0 &&
+              this.mediaErrorPosition !== null &&
+              this.video &&
+              this.video.currentTime - this.mediaErrorPosition >=
+                this.recovery.media.resetAfterSeconds
+            ) {
+              this.mediaRecoveryCount = 0;
+              this.mediaErrorPosition = null;
+            }
           });
 
           hls.on(HlsClass.Events.LEVEL_SWITCHED, (_: string, data: { level: number }) => {
@@ -984,57 +1203,18 @@ export class HlsHandler implements SourceHandler {
                         return;
                       }
                     }
-                    if (this.hlsRetryCount < 3) {
-                      this.hlsRetryCount++;
-                      const delay = Math.pow(2, this.hlsRetryCount) * 1000;
-                      console.warn(
-                        `HLS Network error encountered (detail: ${data.details}, HTTP: ${httpCode ?? 'N/A'}). Retrying in ${delay}ms (${this.hlsRetryCount}/3)...`
-                      );
-                      setTimeout(() => {
-                        if (!this.hls || this.hls !== hls) return;
-                        if (
-                          data.details === 'manifestLoadError' ||
-                          data.details === 'manifestLoadTimeOut' ||
-                          data.details === 'manifestParsingError'
-                        ) {
-                          hls.loadSource(source.src!);
-                        } else {
-                          hls.startLoad();
-                        }
-                      }, delay);
-                    } else {
-                      console.error(
-                        `Fatal HLS Network error. Retries exhausted. Detail: ${data.details}, HTTP: ${httpCode ?? 'N/A'}`
-                      );
-                      let errorMsg: string;
-                      if (data.details === 'manifestLoadError') {
-                        if (httpCode === 404) {
-                          errorMsg =
-                            'Stream not found (404). The URL may be expired, moved, or invalid.';
-                        } else if (httpCode === 403) {
-                          errorMsg =
-                            'Access denied (403). The stream may be geo-restricted or require authentication.';
-                        } else if (httpCode !== undefined && httpCode >= 500) {
-                          errorMsg = `Stream server error (${httpCode}). The server is temporarily unavailable.`;
-                        } else {
-                          errorMsg = `Failed to load stream manifest${httpCode ? ` (HTTP ${httpCode})` : ''}. Check the URL and try again.`;
-                        }
-                      } else if (data.details === 'manifestLoadTimeOut') {
-                        errorMsg =
-                          'Stream connection timed out. The server may be slow or unreachable.';
-                      } else if (data.details === 'manifestParsingError') {
-                        errorMsg =
-                          'Invalid stream format. The URL does not point to a valid HLS stream.';
-                      } else {
-                        errorMsg =
-                          'Fatal streaming connection failure. Check the URL and try again.';
-                      }
-                      controller.updateStatePublic({ error: errorMsg });
-                      this.destroy();
-                    }
+                    this.handleNetworkFailure(
+                      hls,
+                      source,
+                      controller,
+                      data.details,
+                      httpCode,
+                      false
+                    );
                     break;
                   case HlsClass.ErrorTypes.MEDIA_ERROR:
                     this.mediaRecoveryCount++;
+                    this.mediaErrorPosition = this.video ? this.video.currentTime : null;
                     if (this.mediaRecoveryCount === 1) {
                       console.warn(
                         `HLS Media error. Stage 1 Recovery: recoverMediaError() (${this.mediaRecoveryCount}/3)`
@@ -1054,15 +1234,13 @@ export class HlsHandler implements SourceHandler {
                       hls.attachMedia(this.video!);
                     } else {
                       console.error('Fatal HLS Media decode error. Stage 3 Recovery exhausted.');
-                      controller.updateStatePublic({ error: 'Fatal media decoding failure.' });
+                      controller.reportFatalError('Fatal media decoding failure.');
                       this.destroy();
                     }
                     break;
                   default:
                     console.error('Fatal HLS error, destroying streaming instance:', data);
-                    controller.updateStatePublic({
-                      error: 'Fatal video stream initialization crash.',
-                    });
+                    controller.reportFatalError('Fatal video stream initialization crash.');
                     this.destroy();
                     break;
                 }
@@ -1072,9 +1250,7 @@ export class HlsHandler implements SourceHandler {
         })
         .catch((err) => {
               console.error('[HlsHandler] DRM setup failed:', err);
-              controller.updateStatePublic({
-                error: 'Fatal DRM initialization failure.',
-              });
+              controller.reportFatalError('Fatal DRM initialization failure.');
             });
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
           const mergedDrm = {
@@ -1089,14 +1265,12 @@ export class HlsHandler implements SourceHandler {
           video.src = source.src!;
           video.load();
         } else {
-          controller.updateStatePublic({
-            error: 'HLS streaming is not supported by your browser.',
-          });
+          controller.reportFatalError('HLS streaming is not supported by your browser.');
         }
       })
       .catch((err) => {
         console.error('Failed to load hls.js:', err);
-        controller.updateStatePublic({ error: 'Failed to load HLS library.' });
+        controller.reportFatalError('Failed to load HLS library.');
       });
   }
 
@@ -1172,6 +1346,8 @@ export class HlsHandler implements SourceHandler {
 
   destroy() {
     this.stopLivePolling();
+    this.clearRetryTimers();
+    this.lastNetworkError = null;
     if (this.hls) {
       this.hls.destroy();
       this.hls = null;
@@ -1628,15 +1804,19 @@ export class DashHandler implements SourceHandler {
       return;
     }
 
-    if (this.dashRetryCount < 3) {
+    // config.recovery.network applies to DASH too (maxRetries, retryDelayMs).
+    const { maxRetries, retryDelayMs } = resolveRecoveryConfig(
+      this.controller.config?.recovery
+    ).network;
+    if (this.dashRetryCount < maxRetries) {
       this.dashRetryCount++;
       const time = this.video.currentTime;
       const wasPlaying = !this.video.paused;
       const sourceSrc = this.player.getSource();
 
-      const delay = Math.pow(2, this.dashRetryCount) * 1000;
+      const delay = retryDelayMs * Math.pow(2, this.dashRetryCount - 1);
       console.warn(
-        `DASH error encountered. Retrying in ${delay}ms (${this.dashRetryCount}/3) by re-attaching source...`
+        `DASH error encountered. Retrying in ${delay}ms (${this.dashRetryCount}/${maxRetries}) by re-attaching source...`
       );
 
       setTimeout(() => {
@@ -1663,9 +1843,9 @@ export class DashHandler implements SourceHandler {
         }
       }, delay);
     } else {
-      this.controller.updateStatePublic({
-        error: `DASH streaming error: ${errorObj?.message || errorField || 'unknown'}`,
-      });
+      this.controller.reportFatalError(
+        `DASH streaming error: ${errorObj?.message || errorField || 'unknown'}`
+      );
     }
   };
 
@@ -1986,7 +2166,7 @@ export class DashHandler implements SourceHandler {
       })
       .catch((err) => {
         console.error('Failed to load dashjs:', err);
-        controller.updateStatePublic({ error: 'Failed to load DASH library.' });
+        controller.reportFatalError('Failed to load DASH library.');
       });
   }
 

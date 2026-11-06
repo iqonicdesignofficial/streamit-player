@@ -180,6 +180,15 @@ function parseConfigAttribute(value: string | null): PlayerConfiguration | undef
   }
 }
 
+/**
+ * The named events of `PlayerEvents`. That interface also has a
+ * `[key: string]: unknown` index signature (for custom events), which would
+ * otherwise make `keyof PlayerEvents` plain `string`; the mapped type drops it.
+ */
+type KnownPlayerEvent = keyof {
+  [K in keyof PlayerEvents as string extends K ? never : number extends K ? never : K]: PlayerEvents[K];
+};
+
 export class PlayerPlayer extends LitElement {
   @property({ type: String, reflect: true }) src = '';
   @property({ type: String, reflect: true }) captions = '';
@@ -920,6 +929,15 @@ export class PlayerPlayer extends LitElement {
   }
 
   willUpdate(changedProperties: PropertyValues) {
+    // Safety net for elements created before this module registered them
+    // (frameworks that load it lazily): if the `src` attribute is on the
+    // element but the property is still empty at first render, trust the
+    // attribute so the video is not silently left unloaded. Done here, before
+    // render, so it takes effect in the same update cycle without a second load.
+    if (!this.hasUpdated && !this.src) {
+      const attributeSrc = this.getAttribute('src');
+      if (attributeSrc) this.src = attributeSrc;
+    }
     if (changedProperties.has('liveMode') && this.controller) {
       this.controller.setLiveMode(this.liveMode);
     }
@@ -1216,7 +1234,7 @@ export class PlayerPlayer extends LitElement {
     });
 
     // Re-emit core controller events as DOM CustomEvents on <player-player>
-    const coreEvents = [
+    const coreEventList = [
       'play',
       'ended',
       'pause',
@@ -1251,7 +1269,6 @@ export class PlayerPlayer extends LitElement {
       'playlist-near-end',
       'playlist-repeat-change',
       'autoscroll-change',
-      'metadata',
       'timeupdate',
       'waiting',
       'playing',
@@ -1264,6 +1281,23 @@ export class PlayerPlayer extends LitElement {
       'drmlicenserequest',
       'drmlicenseresponse',
       'manifestloaded',
+      // Subtitle / audio-track / live / sleep-timer events. The controller always
+      // emitted these but they were never re-dispatched on the element.
+      'subtitletrackschanged',
+      'subtitletrackchange',
+      'subtitleenabled',
+      'subtitledisabled',
+      'subtitleappearancechange',
+      'audioTracksChanged',
+      'audioTrackChanged',
+      'live-status-change',
+      'live-sync-update',
+      'live-edge-sync',
+      'sleeptimerstart',
+      'sleeptimerupdate',
+      'sleeptimerexpired',
+      'sleeptimercancelled',
+      'adschedulerconflict',
       // Ads/Companions/VMAP/HTML Overlay/SIMID lifecycle events - re-dispatched
       // as DOM CustomEvents on <player-player> following the 'player-*' naming
       // convention every other event here uses (e.g. addEventListener('player-adloaded', ...)).
@@ -1318,7 +1352,17 @@ export class PlayerPlayer extends LitElement {
       'simidexpand',
       'simidskip',
       'simidstop',
-    ];
+    ] as const satisfies readonly KnownPlayerEvent[];
+
+    // Compile-time guard: adding a key to `PlayerEvents` without forwarding it
+    // here is a type error, so the README's "every player event is dispatched
+    // on the element" cannot silently become untrue again.
+    type UnforwardedEvents = Exclude<KnownPlayerEvent, (typeof coreEventList)[number]>;
+    const allEventsForwarded: [UnforwardedEvents] extends [never] ? true : UnforwardedEvents = true;
+    void allEventsForwarded;
+
+    // De-duplicated: a name listed twice would be dispatched twice per event.
+    const coreEvents: ReadonlyArray<KnownPlayerEvent> = Array.from(new Set(coreEventList));
     coreEvents.forEach((evt) => {
       this.controller.addEventListener(evt as keyof PlayerEvents, (detail: unknown) => {
         if (evt === 'config-change') {

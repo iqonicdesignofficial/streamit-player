@@ -28,6 +28,7 @@ import type { ScheduledAdRequest } from './AdScheduler';
 import { AutoThumbnailProvider } from './providers/ThumbnailProviders';
 import { sanitizeAndConvertEmbedUrl } from './utils';
 import { TimelineMath } from './TimelineMath';
+import { resolveRecoveryConfig, validateRecoveryConfig } from './recovery';
 import { PlaylistManager } from './PlaylistManager';
 import { SubtitleManager } from './SubtitleManager';
 import { PictureInPictureManager } from './PictureInPictureManager';
@@ -522,6 +523,9 @@ export class PlayerController {
     }
     if (config.volume !== undefined && (typeof config.volume !== 'number' || config.volume < 0 || config.volume > 1)) {
       warn(`'volume' must be a number between 0 and 1, got ${config.volume}.`);
+    }
+    if ('recovery' in config) {
+      validateRecoveryConfig(config.recovery).forEach(warn);
     }
     if (config.displayMode !== undefined) {
       const allowedModes = ['standard', 'vertical', 'audio-only', 'custom', 'mini', 'floating'];
@@ -1201,6 +1205,9 @@ export class PlayerController {
   private handlePlaying = () => {
     this.clearBufferingTimeout();
     this.updateState({ isBuffering: false, isPlaying: true, error: null, status: 'playing' });
+    // The stall watchdog stops itself after a fatal stall error; resume it if
+    // playback recovers on its own.
+    if (this.stallTimer === undefined) this.startStallCheck();
     this.dispatchEvent('playing');
   };
 
@@ -1272,8 +1279,7 @@ export class PlayerController {
         errMsg = 'Video format or codec is not supported by your browser.';
         break;
     }
-    this.updateState({ error: errMsg, isBuffering: false, status: 'error' });
-    this.dispatchEvent('error', { message: errMsg });
+    this.reportFatalError(errMsg);
   };
 
   private handleTimeUpdate = () => {
@@ -1963,6 +1969,7 @@ export class PlayerController {
           activeChapterIndex: -1,
         });
         this.dispatchEvent('sourcechange', { source });
+        this.dispatchEvent('error', { message: 'Invalid embed source or host not approved.' });
         this.thumbnailProvider?.setSource?.('');
         return;
       }
@@ -1984,6 +1991,9 @@ export class PlayerController {
         activeChapterIndex: -1,
       });
       this.dispatchEvent('sourcechange', { source });
+      this.dispatchEvent('error', {
+        message: 'Invalid video source layout or stream. Please verify input.',
+      });
       this.thumbnailProvider?.setSource?.('');
       return;
     }
@@ -2125,29 +2135,99 @@ export class PlayerController {
   }
 
   // --- Stall Recovery Mechanics ---
+  /**
+   * Watches for "the viewer wants to play but the playhead is not moving" in
+   * every state, including buffering (the case that used to be skipped), and
+   * escalates the longer it lasts. Defaults, all set by `config.recovery.stall`:
+   *
+   *  1. after 5s (not buffering): nudge the playhead 0.1s past a decoder hiccup;
+   *  2. after 15s: ask the source handler to restart loading (`recoverStall`);
+   *  3. after 60s: give up with a fatal error (state + `error` event).
+   *
+   * Any movement of the playhead, or pausing, starts the count over. Time is
+   * accumulated from timer ticks rather than read from the wall clock, with
+   * each tick capped, so a throttled background tab or a laptop waking from
+   * sleep cannot be mistaken for a minute of stalling.
+   */
   private startStallCheck() {
     this.stopStallCheck();
     let lastTime = this.video.currentTime;
-    let stuckCount = 0;
+    let lastTick = Date.now();
+    let stuckMs = 0;
+    let recoveryRequested = false;
 
     this.stallTimer = window.setInterval(() => {
-      if (this.state.isPlaying && !this.state.isBuffering) {
-        if (this.video.currentTime === lastTime) {
-          stuckCount++;
-          if (stuckCount >= 5) {
-            console.warn('Playback stall detected. Attempting stall recovery seek offset...');
-            this.video.currentTime = Math.min(
-              this.video.currentTime + 0.1,
-              this.state.duration || 0
-            );
-            stuckCount = 0;
-          }
-        } else {
-          stuckCount = 0;
-          lastTime = this.video.currentTime;
-        }
+      const now = Date.now();
+      const elapsed = Math.min(now - lastTick, 2 * PlayerController.STALL_TICK_MS);
+      lastTick = now;
+      const video = this.video;
+
+      // Re-read every tick so config.recovery.stall follows updateConfig().
+      const stall = resolveRecoveryConfig(this.config?.recovery).stall;
+
+      const wantsPlayback =
+        stall.enabled && this.state.isPlaying && !video.paused && !video.ended;
+      if (!wantsPlayback || video.currentTime !== lastTime) {
+        lastTime = video.currentTime;
+        stuckMs = 0;
+        recoveryRequested = false;
+        return;
       }
-    }, 1000);
+
+      const previousStuckMs = stuckMs;
+      stuckMs += elapsed;
+
+      if (stuckMs >= stall.failAfterMs) {
+        this.stopStallCheck();
+        this.reportFatalError(
+          `Playback stalled: no progress for ${Math.round(stall.failAfterMs / 1000)} seconds.`
+        );
+        return;
+      }
+
+      if (stuckMs >= stall.restartAfterMs) {
+        if (!recoveryRequested) {
+          recoveryRequested = true;
+          console.warn('Playback stall persists. Asking the stream to restart loading...');
+          try {
+            this.sourceManager.getActiveHandler()?.recoverStall?.();
+          } catch (e) {
+            console.warn('Stall recovery failed:', e);
+          }
+        }
+        return;
+      }
+
+      const step = stall.nudgeAfterMs;
+      const crossedNudge = Math.floor(stuckMs / step) > Math.floor(previousStuckMs / step);
+      if (crossedNudge && !this.state.isBuffering) {
+        console.warn('Playback stall detected. Attempting stall recovery seek offset...');
+        const duration = video.duration;
+        const target = video.currentTime + 0.1;
+        video.currentTime = Number.isFinite(duration) ? Math.min(target, duration) : target;
+        // Our own nudge is not progress: re-baseline so only real playback
+        // beyond it resets the stall count.
+        lastTime = video.currentTime;
+      }
+    }, PlayerController.STALL_TICK_MS);
+  }
+
+  private static readonly STALL_TICK_MS = 1000;
+
+  /**
+   * Fatal playback failure: records the error in state (status `'error'`) and
+   * dispatches the `error` event, exactly as a native `<video>` error does.
+   * Source handlers use this instead of writing `error` into state directly,
+   * which left `player-error` listeners unaware that playback had died.
+   */
+  public reportFatalError(message: string, cause?: { httpCode?: number; details?: string }) {
+    this.clearBufferingTimeout();
+    this.updateState({ error: message, isBuffering: false, status: 'error' });
+    this.dispatchEvent('error', {
+      message,
+      ...(cause?.httpCode !== undefined ? { httpCode: cause.httpCode } : {}),
+      ...(cause?.details ? { details: cause.details } : {}),
+    });
   }
 
   private stopStallCheck() {
